@@ -351,3 +351,34 @@ app.debug = False
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
+@app.route('/api/send', methods=['POST'])
+def proxy_send():
+    """Proxy endpoint to bypass CORS"""
+    data = request.json
+    url = data.get('url')
+    method = data.get('method', 'POST')
+    headers = data.get('headers', {})
+    body = data.get('body', '')
+    
+    # Remove browser-specific headers
+    headers.pop('Origin', None)
+    headers.pop('Referer', None)
+    headers.pop('Sec-', None)
+    
+    try:
+        if method == 'POST':
+            if isinstance(body, dict):
+                r = req_lib.post(url, headers=headers, json=body, timeout=10)
+            else:
+                r = req_lib.post(url, headers=headers, data=body, timeout=10)
+        else:
+            r = req_lib.get(url, headers=headers, timeout=10)
+        
+        return jsonify({
+            'status': r.status_code,
+            'text': r.text[:200],
+            'headers': dict(r.headers)
+        })
+    except Exception as e:
+        return jsonify({'status': 0, 'error': str(e)}), 500
