@@ -1,33 +1,38 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💀 SMS BOMBER ADMIN</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; }
+        .container { max-width: 1200px; margin: 0 auto; }
         .header { border-bottom: 2px solid #00ff00; padding-bottom: 10px; margin-bottom: 20px; }
         .header h1 { color: #ff0000; font-size: 2em; }
+        .header span { color: #888; font-size: 0.8em; }
         .card { background: #111; border: 1px solid #333; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
         .row { display: flex; gap: 20px; flex-wrap: wrap; }
         .col { flex: 1; min-width: 300px; }
-        input, textarea, select { width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #00ff00; border-radius: 5px; font-family: monospace; }
-        button { background: #00ff00; color: #000; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #00cc00; }
+        input, select { width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #00ff00; border-radius: 5px; font-family: monospace; font-size: 1em; }
+        button { padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1.2em; }
+        .btn-success { background: #00cc44; color: #fff; }
+        .btn-success:hover { background: #009933; }
         .btn-danger { background: #ff0000; color: #fff; }
         .btn-danger:hover { background: #cc0000; }
         .btn-warning { background: #ff6600; color: #fff; }
         .btn-warning:hover { background: #cc5500; }
-        .btn-success { background: #00cc44; color: #fff; }
-        .btn-success:hover { background: #009933; }
-        .status.active { color: #00ff00; }
-        .status.inactive { color: #ff0000; }
-        .request-item { background: #1a1a1a; padding: 15px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #ff6600; }
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
         .stat-box { background: #1a1a1a; padding: 15px; border-radius: 5px; text-align: center; }
-        .stat-box .number { font-size: 2em; color: #ff6600; }
+        .stat-box .number { font-size: 2.5em; color: #ff6600; }
         .stat-box .label { color: #888; font-size: 0.8em; }
-        #log { background: #0a0a0a; padding: 10px; border-radius: 5px; height: 300px; overflow-y: auto; font-size: 0.8em; font-family: monospace; }
+        .request-item { background: #1a1a1a; padding: 10px 15px; margin-bottom: 5px; border-radius: 5px; border-left: 3px solid #00ff00; }
+        #log { background: #0a0a0a; padding: 10px; border-radius: 5px; height: 200px; overflow-y: auto; font-size: 0.8em; font-family: monospace; }
+        .status-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 0.7em; }
+        .status-badge.active { background: #00cc44; color: #000; }
+        .status-badge.inactive { background: #ff0000; color: #fff; }
+        .status-badge.running { background: #ff6600; color: #fff; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
@@ -52,62 +57,24 @@
         <!-- Target & Controls -->
         <div class="col">
             <div class="card">
-                <h3>🎯 TARGET</h3>
-                <input type="text" id="targetPhone" placeholder="Enter phone number">
+                <h3>🎯 TARGET & CONTROLS</h3>
+                <input type="text" id="targetPhone" placeholder="Enter phone number" style="font-size:1.2em;">
                 <br><br>
-                <button onclick="startBomb()" class="btn-success" id="startBtn">🚀 START BOMBING</button>
-                <button onclick="stopBomb()" class="btn-danger" id="stopBtn" style="display:none;">⏹️ STOP</button>
-                <div id="bombStatus" style="margin-top:10px;"></div>
-            </div>
-
-            <div class="card">
-                <h3>🔑 API KEYS</h3>
-                <input type="text" id="apiKey" placeholder="Enter API Key">
-                <br><br>
-                <label>Expiry:</label>
-                <select id="keyExpiry">
-                    <option value="3600">1 Hour</option>
-                    <option value="86400">1 Day</option>
-                    <option value="604800">1 Week</option>
-                    <option value="0">Unlimited</option>
-                </select>
-                <br><br>
-                <button onclick="generateKey()">🔑 GENERATE KEY</button>
-                <button onclick="revokeKey()" class="btn-danger">🗑️ REVOKE</button>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="startBomb()" class="btn-success" id="startBtn" style="flex:1;">🚀 START</button>
+                    <button onclick="stopBomb()" class="btn-danger" id="stopBtn" style="flex:1; display:none;">⏹️ STOP</button>
+                </div>
+                <div id="bombStatus" style="margin-top:10px; font-size:1.1em;"></div>
             </div>
         </div>
 
-        <!-- Add Request -->
+        <!-- Active Requests -->
         <div class="col">
             <div class="card">
-                <h3>📥 ADD REQUEST</h3>
-                <label>Name:</label>
-                <input type="text" id="reqName" placeholder="e.g., Testbook OTP">
-                <br><br>
-                <label>URL (use {phone} placeholder):</label>
-                <input type="text" id="reqUrl" placeholder="https://api.example.com/otp?phone={phone}">
-                <br><br>
-                <label>Method:</label>
-                <select id="reqMethod"><option>POST</option><option>GET</option></select>
-                <br><br>
-                <label>Headers (JSON):</label>
-                <textarea id="reqHeaders" placeholder='{"Content-Type": "application/json"}'></textarea>
-                <br><br>
-                <label>Body (JSON or raw):</label>
-                <textarea id="reqBody" placeholder='{"phone": "{phone}"}'></textarea>
-                <br><br>
-                <label>Phone Variations (comma):</label>
-                <input type="text" id="reqPhones" value="9729480795,+919729480795">
-                <br><br>
-                <button onclick="addRequest()">➕ ADD REQUEST</button>
+                <h3>📋 ACTIVE REQUESTS</h3>
+                <div id="requestList"></div>
             </div>
         </div>
-    </div>
-
-    <!-- Requests List -->
-    <div class="card">
-        <h3>📋 ACTIVE REQUESTS</h3>
-        <div id="requestList"></div>
     </div>
 
     <!-- Logs -->
@@ -120,7 +87,7 @@
 <script>
 const API_BASE = window.location.origin + '/api';
 
-// ===== STATS =====
+// ===== LOAD DATA =====
 async function loadStats() {
     try {
         const res = await fetch(API_BASE + '/stats');
@@ -132,7 +99,6 @@ async function loadStats() {
     } catch(e) {}
 }
 
-// ===== REQUESTS =====
 async function loadRequests() {
     try {
         const res = await fetch(API_BASE + '/requests');
@@ -144,133 +110,51 @@ async function loadRequests() {
 function renderRequests(requests) {
     const container = document.getElementById('requestList');
     if (!requests || requests.length === 0) {
-        container.innerHTML = '<p style="color: #888;">No requests. Add one above!</p>';
+        container.innerHTML = '<p style="color:#888;">No requests configured.</p>';
         return;
     }
-    container.innerHTML = requests.map((req, idx) => `
-        <div class="request-item">
-            <div style="display: flex; justify-content: space-between;">
-                <strong>${req.name}</strong>
-                <span>
-                    <span class="status ${req.active ? 'active' : 'inactive'}">${req.active ? '✅ ACTIVE' : '⛔ INACTIVE'}</span>
-                    <button onclick="toggleRequest(${idx})" style="margin-left:10px;">${req.active ? '⏸️' : '▶️'}</button>
-                    <button onclick="deleteRequest(${idx})" class="btn-danger" style="margin-left:5px;">🗑️</button>
-                </span>
-            </div>
-            <div style="font-size:0.8em;color:#888;">${req.method} | ${req.url}</div>
-        </div>
+    container.innerHTML = requests.filter(r => r.active).map(req => `
+        <div class="request-item">✅ ${req.name} | ${req.method} | ${req.url}</div>
     `).join('');
-}
-
-async function addRequest() {
-    const name = document.getElementById('reqName').value.trim();
-    const url = document.getElementById('reqUrl').value.trim();
-    const method = document.getElementById('reqMethod').value;
-    const headers = document.getElementById('reqHeaders').value.trim();
-    const body = document.getElementById('reqBody').value.trim();
-    const phones = document.getElementById('reqPhones').value.split(',').map(p=>p.trim()).filter(p=>p);
-    if (!name || !url || !phones.length) { alert('Name, URL, and phones required!'); return; }
-    try {
-        const res = await fetch(API_BASE + '/requests', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({
-                name, url, method,
-                headers: headers ? JSON.parse(headers) : {},
-                body: body || '{}',
-                phones
-            })
-        });
-        const data = await res.json();
-        if (data.success) { alert('✅ Added!'); loadRequests(); }
-    } catch(e) { alert('❌ Error: '+e.message); }
-}
-
-async function toggleRequest(idx) {
-    try {
-        const res = await fetch(API_BASE + '/requests/'+idx+'/toggle', {method:'PUT'});
-        if (res.ok) loadRequests();
-    } catch(e) {}
-}
-
-async function deleteRequest(idx) {
-    if (!confirm('Delete?')) return;
-    try {
-        await fetch(API_BASE + '/requests/'+idx, {method:'DELETE'});
-        loadRequests();
-    } catch(e) {}
 }
 
 // ===== BOMBING =====
 async function startBomb() {
     const phone = document.getElementById('targetPhone').value.trim();
-    const key = document.getElementById('apiKey').value.trim();
     if (!phone) { alert('Enter phone number!'); return; }
-    if (!key) { alert('Enter API key!'); return; }
-    
+
     try {
         const res = await fetch(API_BASE + '/bomb/start', {
             method: 'POST',
-            headers: {'Content-Type':'application/json', 'X-API-Key': key},
+            headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({phone})
         });
         const data = await res.json();
         if (data.success) {
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'inline-block';
-            document.getElementById('bombStatus').innerHTML = `🟢 Bombing active on ${phone}`;
+            document.getElementById('bombStatus').innerHTML = `🟢 <strong>BOMBING ACTIVE</strong> on ${phone} | ${data.active_requests} requests`;
             addLog(`🚀 Bombing started on ${phone}`);
             loadStats();
         } else {
-            alert('❌ '+data.error);
+            alert('❌ ' + (data.error || 'Failed'));
         }
-    } catch(e) { alert('❌ Error: '+e.message); }
+    } catch(e) { alert('❌ Error: ' + e.message); }
 }
 
 async function stopBomb() {
-    const key = document.getElementById('apiKey').value.trim();
-    if (!key) { alert('Enter API key!'); return; }
     try {
         const res = await fetch(API_BASE + '/bomb/stop', {
             method: 'POST',
-            headers: {'Content-Type':'application/json', 'X-API-Key': key}
+            headers: {'Content-Type': 'application/json'}
         });
         const data = await res.json();
         if (data.success) {
             document.getElementById('startBtn').style.display = 'inline-block';
             document.getElementById('stopBtn').style.display = 'none';
-            document.getElementById('bombStatus').innerHTML = `⏹️ Stopped | ${data.stats.total_requests} requests sent`;
+            document.getElementById('bombStatus').innerHTML = `⏹️ <strong>STOPPED</strong> | ${data.stats.total_requests} requests sent`;
             addLog(`⏹️ Bombing stopped`);
             loadStats();
-        }
-    } catch(e) {}
-}
-
-// ===== KEYS =====
-async function generateKey() {
-    const expiry = parseInt(document.getElementById('keyExpiry').value);
-    try {
-        const res = await fetch(API_BASE + '/keys', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({expiry})
-        });
-        const data = await res.json();
-        if (data.success) {
-            document.getElementById('apiKey').value = data.key;
-            alert('✅ Key: '+data.key);
-        }
-    } catch(e) { alert('❌ '+e.message); }
-}
-
-async function revokeKey() {
-    const key = document.getElementById('apiKey').value.trim();
-    if (!key || !confirm('Revoke this key?')) return;
-    try {
-        const res = await fetch(API_BASE + '/keys/'+key, {method:'DELETE'});
-        if (res.ok) {
-            document.getElementById('apiKey').value = '';
-            alert('✅ Revoked');
         }
     } catch(e) {}
 }
@@ -278,11 +162,13 @@ async function revokeKey() {
 // ===== LOGS =====
 function addLog(msg) {
     const log = document.getElementById('log');
-    log.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}\n` + log.innerHTML;
+    const entry = document.createElement('div');
+    entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    log.prepend(entry);
     if (log.children.length > 50) log.removeChild(log.lastChild);
 }
 
-// ===== POLLING =====
+// ===== AUTO REFRESH =====
 setInterval(() => {
     loadStats();
     // Check bombing status
@@ -290,6 +176,7 @@ setInterval(() => {
         if (data.active) {
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'inline-block';
+            document.getElementById('bombStatus').innerHTML = `🟢 <strong>BOMBING ACTIVE</strong> | ${data.active_requests} requests`;
         }
     }).catch(() => {});
 }, 3000);
@@ -297,6 +184,7 @@ setInterval(() => {
 // ===== INIT =====
 loadRequests();
 loadStats();
+addLog('💀 Admin panel ready');
 </script>
 </body>
 </html>
