@@ -8,7 +8,6 @@ import threading
 import requests as req_lib
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-import hashlib
 import re
 
 app = Flask(__name__, static_folder='../admin', static_url_path='/admin')
@@ -47,38 +46,32 @@ history_data = load_json(HISTORY_FILE, [])
 bombing_active = False
 bombing_threads = []
 bombing_lock = threading.Lock()
-KEY_USAGE = {}  # Track key usage in memory
+KEY_USAGE = {}
 
 # ===== KEY VALIDATION =====
 def validate_key(key):
     if key not in keys_data:
         return False, "Key not found"
-    
     key_info = keys_data[key]
-    
-    # Check expiry
     if key_info.get('expiry_time'):
         expiry = datetime.fromisoformat(key_info['expiry_time'])
         if datetime.now() > expiry:
             return False, "Key expired"
-    
-    # Check request limit
     if key_info.get('request_limit', 0) > 0:
         used = KEY_USAGE.get(key, 0)
         if used >= key_info['request_limit']:
             return False, "Request limit exceeded"
-    
     return True, "Valid"
 
 def increment_key_usage(key):
     KEY_USAGE[key] = KEY_USAGE.get(key, 0) + 1
-    # Save usage to history
     history_data.append({
         "key": key,
+        "action": "used",
         "time": datetime.now().isoformat(),
         "total_usage": KEY_USAGE[key]
     })
-    save_json(HISTORY_FILE, history_data[-1000:])  # Keep last 1000
+    save_json(HISTORY_FILE, history_data[-1000:])
 
 # ===== PANSHO SESSION =====
 def get_pansho_session():
@@ -211,7 +204,6 @@ def get_stats():
 # ===== KEYS =====
 @app.route('/api/keys', methods=['GET'])
 def get_keys():
-    # Return keys with usage
     keys_with_usage = {}
     for k, v in keys_data.items():
         keys_with_usage[k] = {
@@ -226,22 +218,17 @@ def generate_key():
     data = request.json
     custom_key = data.get('custom_key', '').strip()
     
-    # If custom key provided, validate and use it
     if custom_key:
-        # Validate custom key format (alphanumeric + underscore)
-        if not re.match(r'^[a-zA-Z0-9_]{8,32}$', custom_key):
-            return jsonify({"error": "Key must be 8-32 characters, alphanumeric or underscore"}), 400
+        if not re.match(r'^[a-zA-Z0-9_]{4,32}$', custom_key):
+            return jsonify({"error": "Key must be 4-32 characters, alphanumeric or underscore"}), 400
         if custom_key in keys_data:
             return jsonify({"error": "Key already exists"}), 400
         key = custom_key
     else:
-        # Generate random key
-        key = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=24))
-        # Ensure it doesn't conflict
+        key = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=16))
         while key in keys_data:
-            key = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=24))
+            key = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=16))
     
-    # Parse expiry
     expiry_type = data.get('expiry_type', 'unlimited')
     expiry_time = None
     if expiry_type == 'time':
@@ -253,9 +240,8 @@ def generate_key():
             try:
                 expiry_time = datetime.fromisoformat(date_str).isoformat()
             except:
-                return jsonify({"error": "Invalid date format. Use YYYY-MM-DDTHH:MM:SS"}), 400
+                return jsonify({"error": "Invalid date format"}), 400
     
-    # Parse request limit
     request_limit = data.get('request_limit', 0)
     if request_limit:
         try:
@@ -263,7 +249,6 @@ def generate_key():
         except:
             request_limit = 0
     
-    # Create key info
     keys_data[key] = {
         "name": data.get('name', 'Unnamed Key'),
         "created": datetime.now().isoformat(),
@@ -274,7 +259,6 @@ def generate_key():
     }
     save_json(KEYS_FILE, keys_data)
     
-    # Add to history
     history_data.append({
         "key": key,
         "action": "created",
@@ -291,23 +275,6 @@ def generate_key():
         "info": keys_data[key]
     })
 
-@app.route('/api/keys/<key>', methods=['PUT'])
-def update_key(key):
-    if key not in keys_data:
-        return jsonify({"error": "Key not found"}), 404
-    
-    data = request.json
-    # Update allowed fields
-    if 'name' in data:
-        keys_data[key]['name'] = data['name']
-    if 'request_limit' in data:
-        keys_data[key]['request_limit'] = int(data['request_limit'])
-    if 'expiry_time' in data:
-        keys_data[key]['expiry_time'] = data['expiry_time']
-    
-    save_json(KEYS_FILE, keys_data)
-    return jsonify({"success": True, "key": key, "info": keys_data[key]})
-
 @app.route('/api/keys/<key>', methods=['DELETE'])
 def revoke_key(key):
     if key in keys_data:
@@ -322,32 +289,9 @@ def revoke_key(key):
         return jsonify({"success": True})
     return jsonify({"success": False}), 404
 
-@app.route('/api/keys/<key>/copy', methods=['GET'])
-def copy_key(key):
-    if key not in keys_data:
-        return jsonify({"error": "Key not found"}), 404
-    return jsonify({
-        "key": key,
-        "info": keys_data[key],
-        "full_key": key
-    })
-
 @app.route('/api/keys/history', methods=['GET'])
 def get_key_history():
-    return jsonify(history_data[-200:])  # Last 200 history entries
-
-@app.route('/api/keys/usage', methods=['GET'])
-def get_key_usage():
-    # Aggregate usage
-    usage = {}
-    for entry in history_data:
-        key = entry.get('key')
-        if key and key in keys_data:
-            if key not in usage:
-                usage[key] = 0
-            if entry.get('action') == 'used':
-                usage[key] += 1
-    return jsonify(usage)
+    return jsonify(history_data[-200:])
 
 # ===== LOGS =====
 @app.route('/api/logs', methods=['GET'])
@@ -355,9 +299,83 @@ def get_logs():
     limit = request.args.get('limit', 50, type=int)
     return jsonify(logs_data[-limit:])
 
-# ===== BOMBING =====
+# ===== ===== ===== =====
+# ===== GET API — SIMPLE URL =====
+# ===== ===== ===== =====
+@app.route('/api', methods=['GET'])
+def simple_api():
+    """Simple GET API: /api?key=KEY&bomb=PHONE"""
+    key = request.args.get('key')
+    phone = request.args.get('bomb')
+    
+    # Validate key
+    if not key:
+        return jsonify({"error": "Missing 'key' parameter"}), 400
+    if key not in keys_data:
+        return jsonify({"error": "Invalid API key"}), 401
+    
+    # Validate phone
+    if not phone:
+        return jsonify({"error": "Missing 'bomb' parameter (phone number)"}), 400
+    if not re.match(r'^\+?[0-9]{10,15}$', phone):
+        return jsonify({"error": "Invalid phone number format"}), 400
+    
+    # Start bombing (with key validation)
+    valid, msg = validate_key(key)
+    if not valid:
+        return jsonify({"error": msg}), 401
+    
+    increment_key_usage(key)
+    
+    # Trigger bombing
+    global bombing_active, bombing_threads, stats_data
+    
+    if bombing_active:
+        return jsonify({"error": "Bombing already active"}), 400
+    
+    stats_data = {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0}
+    save_json(STATS_FILE, stats_data)
+    
+    bombing_active = True
+    bombing_threads = []
+    
+    active_requests = [r for r in requests_data if r.get('active', True)]
+    thread_id = 0
+    for req in active_requests:
+        for _ in range(3):
+            t = threading.Thread(target=bombing_worker, args=(phone, req, thread_id))
+            t.daemon = True
+            t.start()
+            bombing_threads.append(t)
+            thread_id += 1
+    
+    return jsonify({
+        "success": True,
+        "message": f"Bombing started on {phone}",
+        "phone": phone,
+        "key": key,
+        "active_requests": len(active_requests),
+        "threads": len(bombing_threads)
+    })
+
+@app.route('/api/stop', methods=['GET'])
+def simple_stop():
+    """Simple STOP API: /api/stop?key=KEY"""
+    key = request.args.get('key')
+    if not key or key not in keys_data:
+        return jsonify({"error": "Invalid API key"}), 401
+    
+    global bombing_active
+    bombing_active = False
+    return jsonify({
+        "success": True,
+        "message": "Bombing stopped",
+        "stats": stats_data
+    })
+
+# ===== BOMBING (POST) =====
 @app.route('/api/bomb/start', methods=['POST'])
-def start_bombing():
+def start_bombing_post():
     global bombing_active, bombing_threads, stats_data
     
     data = request.json
@@ -365,7 +383,6 @@ def start_bombing():
     if not phone:
         return jsonify({"error": "Phone number required"}), 400
     
-    # Validate API key if provided
     api_key = data.get('api_key') or request.headers.get('X-API-Key')
     if api_key:
         valid, msg = validate_key(api_key)
@@ -385,7 +402,7 @@ def start_bombing():
     active_requests = [r for r in requests_data if r.get('active', True)]
     thread_id = 0
     for req in active_requests:
-        for _ in range(3):  # 3 threads per request
+        for _ in range(3):
             t = threading.Thread(target=bombing_worker, args=(phone, req, thread_id))
             t.daemon = True
             t.start()
@@ -401,7 +418,7 @@ def start_bombing():
     })
 
 @app.route('/api/bomb/stop', methods=['POST'])
-def stop_bombing():
+def stop_bombing_post():
     global bombing_active
     bombing_active = False
     return jsonify({
