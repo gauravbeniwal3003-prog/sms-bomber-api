@@ -2,114 +2,242 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>💀 FREE OTP BOMBER — Local Device</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <title>💀 FREE OTP BOMBER — Liquid Glass</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Courier New', monospace;
-            background: #0a0a0a;
-            color: #00ff00;
-            padding: 20px;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
+            padding: 16px;
         }
         .glass {
-            max-width: 700px;
+            max-width: 480px;
             width: 100%;
-            background: rgba(255,255,255,0.05);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 30px;
-            padding: 40px;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border-radius: 32px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.12);
+            padding: 28px 24px 32px;
+            transition: all 0.3s;
         }
-        h1 { color: #ff0000; font-size: 2.2em; margin-bottom: 10px; }
-        .sub { color: #888; font-size: 0.8em; margin-bottom: 30px; }
-        input, button {
-            width: 100%;
-            padding: 15px;
-            margin-bottom: 15px;
-            border: 1px solid #333;
-            border-radius: 12px;
-            background: #111;
-            color: #00ff00;
-            font-size: 1.1em;
-            font-family: monospace;
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
         }
-        input:focus { outline: none; border-color: #00ff00; }
-        .btn-start { background: #00cc44; color: #000; font-weight: bold; cursor: pointer; border: none; }
-        .btn-start:hover { background: #00b33a; }
-        .btn-stop { background: #ff4444; color: #fff; font-weight: bold; cursor: pointer; border: none; display: none; }
-        .btn-stop:hover { background: #cc0000; }
-        .log-box {
-            background: #0a0a0a;
-            border: 1px solid #333;
-            border-radius: 12px;
-            padding: 15px;
-            height: 250px;
-            overflow-y: auto;
+        .header h1 {
+            color: #1a1a2e;
+            font-size: 1.7em;
+            font-weight: 700;
+        }
+        .header .badge {
+            background: rgba(0,204,68,0.15);
+            color: #00cc44;
+            font-size: 0.65em;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        .sub {
+            color: #555;
             font-size: 0.8em;
-            margin-top: 15px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding-bottom: 12px;
         }
-        .log-box div { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
-        .stats {
+        .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
-            margin: 15px 0;
+            margin-bottom: 18px;
         }
         .stat-card {
-            background: #111;
-            padding: 12px;
-            border-radius: 10px;
+            background: rgba(255,255,255,0.4);
+            backdrop-filter: blur(8px);
+            border-radius: 14px;
+            padding: 12px 8px;
             text-align: center;
-            border: 1px solid #222;
+            border: 1px solid rgba(255,255,255,0.2);
         }
-        .stat-card .num { font-size: 1.8em; color: #ff6600; }
-        .stat-card .label { color: #888; font-size: 0.7em; }
+        .stat-card .num {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+        .stat-card .label {
+            font-size: 0.6em;
+            color: #555;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 8px 14px;
+        }
         .status-dot {
-            display: inline-block;
             width: 12px;
             height: 12px;
             border-radius: 50%;
-            margin-right: 8px;
+            flex-shrink: 0;
         }
-        .status-dot.running { background: #00cc44; animation: blink 0.8s infinite; }
+        .status-dot.running {
+            background: #00cc44;
+            animation: pulse 0.8s infinite;
+        }
         .status-dot.stopped { background: #ff4444; }
-        @keyframes blink { 50% { opacity: 0.3; } }
-        .footer { margin-top: 20px; color: #555; font-size: 0.7em; text-align: center; }
+        @keyframes pulse { 50% { opacity: 0.3; } }
+        .status-text {
+            font-weight: 500;
+            color: #1a1a2e;
+            font-size: 0.95em;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px 16px;
+            border: none;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.5);
+            backdrop-filter: blur(10px);
+            font-size: 1em;
+            color: #1a1a2e;
+            outline: none;
+            border: 1px solid rgba(255,255,255,0.3);
+            transition: 0.3s;
+            margin-bottom: 12px;
+        }
+        input:focus { background: rgba(255,255,255,0.8); }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .btn {
+            flex: 1;
+            padding: 14px 0;
+            border: none;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 1em;
+            cursor: pointer;
+            transition: 0.3s;
+            backdrop-filter: blur(10px);
+        }
+        .btn-start {
+            background: #00cc44;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0,204,68,0.25);
+        }
+        .btn-start:hover { background: #00b33a; transform: scale(1.01); }
+        .btn-start:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-stop {
+            background: #ff4444;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(255,68,68,0.25);
+            display: none;
+        }
+        .btn-stop:hover { background: #cc0000; transform: scale(1.01); }
+
+        .log-box {
+            background: rgba(0,0,0,0.04);
+            backdrop-filter: blur(8px);
+            border-radius: 14px;
+            padding: 12px 14px;
+            height: 180px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.75em;
+            color: #1a1a2e;
+            border: 1px solid rgba(255,255,255,0.15);
+            margin-bottom: 12px;
+        }
+        .log-box div {
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.03);
+            word-break: break-all;
+        }
+        .log-box .log-success { color: #00aa33; }
+        .log-box .log-fail { color: #cc3333; }
+        .log-box .log-info { color: #3366cc; }
+
+        .footer {
+            text-align: center;
+            font-size: 0.65em;
+            color: #777;
+            border-top: 1px solid rgba(0,0,0,0.05);
+            padding-top: 12px;
+        }
+        .footer a {
+            color: #1a1a2e;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        @media (max-width: 480px) {
+            .glass { padding: 20px 16px; }
+            .header h1 { font-size: 1.3em; }
+            .stat-card .num { font-size: 1.4em; }
+            .btn { font-size: 0.9em; padding: 12px 0; }
+            .log-box { height: 140px; font-size: 0.7em; }
+        }
     </style>
 </head>
 <body>
 
-<div class="glass">
-    <h1>💀 FREE OTP BOMBER</h1>
-    <div class="sub">⚡ Local Device · Unlimited Speed · No Server Timeout</div>
+<div class="glass" id="app">
+    <div class="header">
+        <h1>💀 FREE BOMBER</h1>
+        <span class="badge">⚡ LOCAL DEVICE</span>
+    </div>
+    <div class="sub">🔹 Unlimited speed · No server timeout · Runs on your device</div>
 
-    <div class="stats">
+    <!-- Stats -->
+    <div class="stats-grid">
         <div class="stat-card"><div class="num" id="totalCount">0</div><div class="label">Total</div></div>
         <div class="stat-card"><div class="num" id="successCount">0</div><div class="label">✅ Success</div></div>
         <div class="stat-card"><div class="num" id="failedCount">0</div><div class="label">❌ Failed</div></div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+    <!-- Status -->
+    <div class="status-row">
         <span class="status-dot stopped" id="statusDot"></span>
-        <span id="statusText" style="color:#888;">Stopped</span>
+        <span class="status-text" id="statusText">Stopped</span>
+        <span style="margin-left:auto;font-size:0.7em;color:#888;" id="speedDisplay">0 req/sec</span>
     </div>
 
+    <!-- Input -->
     <input type="text" id="targetPhone" placeholder="📱 Enter phone number" value="9729480795" />
 
-    <button class="btn-start" id="startBtn" onclick="startBomb()">🚀 START BOMBING</button>
-    <button class="btn-stop" id="stopBtn" onclick="stopBomb()">⏹️ STOP</button>
-
-    <div class="log-box" id="logBox">
-        <div>💀 Ready. Enter number and click START.</div>
+    <!-- Buttons -->
+    <div class="btn-group">
+        <button class="btn btn-start" id="startBtn" onclick="startBomb()">🚀 START</button>
+        <button class="btn btn-stop" id="stopBtn" onclick="stopBomb()">⏹️ STOP</button>
     </div>
 
-    <div class="footer">Owner: @gaurav_beniwal_0001 | Channel: @gaurav_beni_0001</div>
+    <!-- Logs -->
+    <div class="log-box" id="logBox">
+        <div class="log-info">💀 Ready. Enter number and click START.</div>
+    </div>
+
+    <div class="footer">
+        Owner: <a href="https://t.me/gaurav_beniwal_0001" target="_blank">@gaurav_beniwal_0001</a> · 
+        <a href="https://www.youtube.com/@gaurav_beniwal_0001" target="_blank">YouTube</a>
+    </div>
 </div>
 
 <script src="script.js"></script>
