@@ -3,91 +3,247 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>💀 PANSHO BOMBER ADMIN</title>
+    <title>💀 SMS BOMBER — Liquid Glass</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; padding: 20px; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        .header { border-bottom: 2px solid #00ff00; padding-bottom: 10px; margin-bottom: 20px; }
-        .header h1 { color: #ff0000; }
-        .card { background: #111; border: 1px solid #333; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
-        .row { display: flex; gap: 20px; flex-wrap: wrap; }
-        .col { flex: 1; min-width: 300px; }
-        input { width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #00ff00; border-radius: 5px; font-size: 1.1em; }
-        button { padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1.1em; }
-        .btn-success { background: #00cc44; color: #fff; }
-        .btn-danger { background: #ff0000; color: #fff; }
-        .btn-warning { background: #ff6600; color: #fff; }
-        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
-        .stat-box { background: #1a1a1a; padding: 15px; border-radius: 5px; text-align: center; }
-        .stat-box .number { font-size: 2em; color: #ff6600; }
-        .stat-box .label { color: #888; font-size: 0.8em; }
-        #log { background: #0a0a0a; padding: 10px; border-radius: 5px; height: 250px; overflow-y: auto; font-size: 0.8em; }
-        .status-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 0.7em; }
-        .status-badge.running { background: #ff6600; color: #fff; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.15);
+            padding: 40px;
+            max-width: 1200px;
+            width: 100%;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+        .header h1 {
+            color: #1a1a2e;
+            font-size: 2.2em;
+            font-weight: 700;
+        }
+        .header span {
+            color: #555;
+            font-size: 0.9em;
+            background: rgba(0,0,0,0.05);
+            padding: 6px 14px;
+            border-radius: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.5);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.3);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-3px); }
+        .stat-card .number {
+            font-size: 2.2em;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+        .stat-card .label {
+            font-size: 0.8em;
+            color: #555;
+            margin-top: 4px;
+        }
+        .stat-card .status-dot {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .stat-card .status-dot.running { background: #00cc44; animation: pulse 1s infinite; }
+        .stat-card .status-dot.stopped { background: #ff4444; }
+        @keyframes pulse { 50% { opacity: 0.4; } }
+
+        .row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .col {
+            flex: 1;
+            min-width: 250px;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .input-group input {
+            flex: 1;
+            padding: 14px 18px;
+            border: none;
+            border-radius: 14px;
+            background: rgba(255,255,255,0.6);
+            backdrop-filter: blur(10px);
+            font-size: 1em;
+            color: #1a1a2e;
+            outline: none;
+            border: 1px solid rgba(255,255,255,0.3);
+            transition: 0.3s;
+            min-width: 180px;
+        }
+        .input-group input:focus { background: rgba(255,255,255,0.85); }
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 1em;
+            cursor: pointer;
+            transition: 0.3s;
+            backdrop-filter: blur(10px);
+        }
+        .btn-start {
+            background: #00cc44;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(0,204,68,0.3);
+        }
+        .btn-start:hover { background: #00b33a; transform: scale(1.02); }
+        .btn-stop {
+            background: #ff4444;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(255,68,68,0.3);
+        }
+        .btn-stop:hover { background: #e03333; transform: scale(1.02); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+
+        .request-list {
+            background: rgba(255,255,255,0.3);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .request-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 4px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            color: #1a1a2e;
+        }
+        .request-item:last-child { border-bottom: none; }
+        .request-item .badge {
+            background: #00cc44;
+            color: #fff;
+            font-size: 0.7em;
+            padding: 2px 10px;
+            border-radius: 12px;
+        }
+
+        .log-box {
+            background: rgba(0,0,0,0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 15px;
+            height: 180px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            color: #1a1a2e;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .log-box div { padding: 2px 0; border-bottom: 1px solid rgba(0,0,0,0.03); }
+
+        @media (max-width: 600px) {
+            .glass { padding: 20px; }
+            .header h1 { font-size: 1.5em; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        }
     </style>
 </head>
 <body>
-<div class="container">
+<div class="glass" id="app">
     <div class="header">
-        <h1>💀 PANSHO SMS BOMBER</h1>
-        <span>Owner: @gaurav_beniwal_0001 | Channel: @gaurav_beni_0001</span>
+        <h1>💀 SMS BOMBER</h1>
+        <span>⚡ Liquid Glass · @gaurav_beniwal_0001</span>
     </div>
 
     <!-- Stats -->
-    <div class="card">
-        <h3>📊 SYSTEM STATS</h3>
-        <div class="stats-grid" id="statsGrid">
-            <div class="stat-box"><div class="number" id="totalRequests">0</div><div class="label">Total</div></div>
-            <div class="stat-box"><div class="number" id="successCount">0</div><div class="label">Success</div></div>
-            <div class="stat-box"><div class="number" id="failedCount">0</div><div class="label">Failed</div></div>
-            <div class="stat-box"><div class="number" id="status">⏹️</div><div class="label">Status</div></div>
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="number" id="totalRequests">0</div><div class="label">📦 Total Sent</div></div>
+        <div class="stat-card"><div class="number" id="successCount">0</div><div class="label">✅ Success</div></div>
+        <div class="stat-card"><div class="number" id="failedCount">0</div><div class="label">❌ Failed</div></div>
+        <div class="stat-card">
+            <div class="number"><span class="status-dot" id="statusDot"></span><span id="statusText">Stopped</span></div>
+            <div class="label">⚡ Status</div>
         </div>
     </div>
 
     <div class="row">
         <div class="col">
-            <div class="card">
-                <h3>🎯 TARGET</h3>
-                <input type="text" id="targetPhone" placeholder="Enter phone number (e.g., 9729480795)" style="font-size:1.2em;">
-                <br><br>
-                <div style="display: flex; gap: 10px;">
-                    <button onclick="startBomb()" class="btn-success" id="startBtn" style="flex:1;">🚀 START</button>
-                    <button onclick="stopBomb()" class="btn-danger" id="stopBtn" style="flex:1; display:none;">⏹️ STOP</button>
-                </div>
-                <div id="bombStatus" style="margin-top:10px; font-size:1.1em;"></div>
+            <div class="input-group">
+                <input type="text" id="targetPhone" placeholder="📱 Enter phone number" value="9729480795">
+                <button class="btn btn-start" id="startBtn" onclick="startBomb()">🚀 START</button>
+                <button class="btn btn-stop" id="stopBtn" onclick="stopBomb()" style="display:none;">⏹️ STOP</button>
             </div>
+            <div id="bombStatus" style="margin-top:12px;font-weight:500;color:#1a1a2e;"></div>
         </div>
         <div class="col">
-            <div class="card">
-                <h3>📋 ACTIVE REQUESTS</h3>
-                <div id="requestList"></div>
+            <div class="request-list" id="requestList">
+                <div style="color:#888;">Loading requests...</div>
             </div>
         </div>
     </div>
 
-    <div class="card">
-        <h3>📜 LIVE LOGS</h3>
-        <div id="log"></div>
+    <div style="margin-top:20px;">
+        <div class="log-box" id="logBox"></div>
     </div>
 </div>
 
 <script>
 const API_BASE = window.location.origin + '/api';
 
+// ===== DOM REFS =====
+const $ = id => document.getElementById(id);
+const totalRequests = $('totalRequests');
+const successCount = $('successCount');
+const failedCount = $('failedCount');
+const statusDot = $('statusDot');
+const statusText = $('statusText');
+const startBtn = $('startBtn');
+const stopBtn = $('stopBtn');
+const bombStatus = $('bombStatus');
+const logBox = $('logBox');
+const targetPhone = $('targetPhone');
+const requestList = $('requestList');
+
 // ===== LOAD DATA =====
 async function loadStats() {
     try {
         const res = await fetch(API_BASE + '/stats');
         const data = await res.json();
-        document.getElementById('totalRequests').textContent = data.total_requests || 0;
-        document.getElementById('successCount').textContent = data.usage?.success || 0;
-        document.getElementById('failedCount').textContent = data.usage?.failed || 0;
-        
-        const status = await fetch(API_BASE + '/bomb/status');
-        const statusData = await status.json();
-        document.getElementById('status').textContent = statusData.active ? '🟢' : '⏹️';
+        totalRequests.textContent = data.usage?.total_requests || 0;
+        successCount.textContent = data.usage?.success || 0;
+        failedCount.textContent = data.usage?.failed || 0;
     } catch(e) {}
 }
 
@@ -95,23 +251,46 @@ async function loadRequests() {
     try {
         const res = await fetch(API_BASE + '/requests');
         const data = await res.json();
-        const container = document.getElementById('requestList');
         if (!data || data.length === 0) {
-            container.innerHTML = '<p style="color:#888;">No requests configured.</p>';
+            requestList.innerHTML = '<div style="color:#888;">No requests configured.</div>';
             return;
         }
-        container.innerHTML = data.filter(r => r.active).map(req => `
-            <div style="background:#1a1a1a;padding:8px 12px;margin-bottom:5px;border-radius:5px;border-left:3px solid #00ff00;">
-                ✅ ${req.name}
+        requestList.innerHTML = data.filter(r => r.active).map(req => `
+            <div class="request-item">
+                <span>✅ ${req.name}</span>
+                <span class="badge">${req.method}</span>
             </div>
-        `).join('');
+        `).join('') || '<div style="color:#888;">No active requests.</div>';
+    } catch(e) {}
+}
+
+async function loadStatus() {
+    try {
+        const res = await fetch(API_BASE + '/bomb/status');
+        const data = await res.json();
+        if (data.active) {
+            statusDot.className = 'status-dot running';
+            statusText.textContent = 'Running';
+            startBtn.style.display = 'none';
+            stopBtn.style.display = 'inline-block';
+            bombStatus.innerHTML = `🟢 <strong>Bombing active</strong> · ${data.active_requests} requests · ${data.stats?.total_requests || 0} sent`;
+        } else {
+            statusDot.className = 'status-dot stopped';
+            statusText.textContent = 'Stopped';
+            startBtn.style.display = 'inline-block';
+            stopBtn.style.display = 'none';
+            bombStatus.innerHTML = data.stats ? `⏹️ Stopped · ${data.stats.total_requests || 0} sent` : '⏹️ Idle';
+        }
     } catch(e) {}
 }
 
 // ===== BOMBING =====
 async function startBomb() {
-    const phone = document.getElementById('targetPhone').value.trim();
+    const phone = targetPhone.value.trim();
     if (!phone) { alert('Enter phone number!'); return; }
+
+    startBtn.disabled = true;
+    startBtn.textContent = '⏳ Starting...';
 
     try {
         const res = await fetch(API_BASE + '/bomb/start', {
@@ -121,18 +300,20 @@ async function startBomb() {
         });
         const data = await res.json();
         if (data.success) {
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('stopBtn').style.display = 'inline-block';
-            document.getElementById('bombStatus').innerHTML = `🟢 <strong>BOMBING ACTIVE</strong> on ${phone}`;
-            addLog(`🚀 Bombing started on ${phone}`);
-            loadStats();
+            addLog(`🚀 Bombing started on ${phone} · ${data.active_requests} requests`);
+            await loadStatus();
+            await loadStats();
         } else {
             alert('❌ ' + (data.error || 'Failed'));
         }
     } catch(e) { alert('❌ Error: ' + e.message); }
+    startBtn.disabled = false;
+    startBtn.textContent = '🚀 START';
 }
 
 async function stopBomb() {
+    stopBtn.disabled = true;
+    stopBtn.textContent = '⏳ Stopping...';
     try {
         const res = await fetch(API_BASE + '/bomb/stop', {
             method: 'POST',
@@ -140,40 +321,34 @@ async function stopBomb() {
         });
         const data = await res.json();
         if (data.success) {
-            document.getElementById('startBtn').style.display = 'inline-block';
-            document.getElementById('stopBtn').style.display = 'none';
-            document.getElementById('bombStatus').innerHTML = `⏹️ <strong>STOPPED</strong> | ${data.stats.total_requests} requests sent`;
-            addLog(`⏹️ Bombing stopped`);
-            loadStats();
+            addLog(`⏹️ Bombing stopped · ${data.stats.total_requests} sent`);
+            await loadStatus();
+            await loadStats();
         }
     } catch(e) {}
+    stopBtn.disabled = false;
+    stopBtn.textContent = '⏹️ STOP';
 }
 
 // ===== LOGS =====
 function addLog(msg) {
-    const log = document.getElementById('log');
     const entry = document.createElement('div');
     entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-    log.prepend(entry);
-    if (log.children.length > 50) log.removeChild(log.lastChild);
+    logBox.prepend(entry);
+    if (logBox.children.length > 50) logBox.removeChild(logBox.lastChild);
 }
 
 // ===== POLLING =====
-setInterval(() => {
-    loadStats();
-    fetch(API_BASE + '/bomb/status').then(res => res.json()).then(data => {
-        if (data.active) {
-            document.getElementById('startBtn').style.display = 'none';
-            document.getElementById('stopBtn').style.display = 'inline-block';
-            document.getElementById('bombStatus').innerHTML = `🟢 <strong>BOMBING ACTIVE</strong> | ${data.active_requests} requests`;
-        }
-    }).catch(() => {});
-}, 2000);
+setInterval(async () => {
+    await loadStats();
+    await loadStatus();
+}, 1500);
 
 // ===== INIT =====
 loadRequests();
 loadStats();
-addLog('💀 Admin panel ready');
+loadStatus();
+addLog('💀 Liquid Glass Admin ready · Server-side stats');
 </script>
 </body>
 </html>
