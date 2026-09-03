@@ -1,21 +1,5 @@
 [
   {
-    "name": "Testbook OTP",
-    "url": "https://api.testbook.com/api/v2/otp/send?emailOrMobile={phone}&resend=true",
-    "method": "POST",
-    "headers": {
-      "Accept": "application/json, text/plain, */*",
-      "Content-Type": "application/json",
-      "Referer": "https://testbook.com/",
-      "X-Tb-Client": "web,1.3",
-      "Origin": "https://testbook.com"
-    },
-    "body": {},
-    "phones": ["9729480795", "+919729480795", "919729480795", "09729480795"],
-    "active": true,
-    "created": "2026-09-03T00:00:00.000Z"
-  },
-  {
     "name": "Pansho OTP Login",
     "url": "https://pansho.com/customer/auth/login",
     "method": "POST",
@@ -24,9 +8,21 @@
       "Origin": "https://pansho.com",
       "Referer": "https://pansho.com/"
     },
-    "body": "_token=lOuTFq2UeWFsgoJ85ezodl7zd5ASbX2ntWCgqHYG&keep_customer_login_redirect_url=https%3A%2F%2Fpansho.com&login_type=otp-login&phone={phone}&country_code=91",
+    "body": "_token={token}&login_type=otp-login&phone={phone}&country_code=91",
     "phones": ["9729480795", "+919729480795"],
-    "active": true,
-    "created": "2026-09-03T00:00:00.000Z"
+    "active": true
+  },
+  {
+    "name": "Testbook OTP",
+    "url": "https://api.testbook.com/api/v2/otp/send?emailOrMobile={phone}&resend=true",
+    "method": "POST",
+    "headers": {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "X-Tb-Client": "web,1.3"
+    },
+    "body": {},
+    "phones": ["9729480795", "+919729480795"],
+    "active": true
   }
 ]
