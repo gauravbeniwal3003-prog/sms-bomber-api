@@ -13,7 +13,7 @@ CORS(app)
 
 # ===== DATA FILES =====
 REQUESTS_FILE = 'requests/requests.json'
-STATS_FILE = 'config/stats.json'
+STATS_FILE = 'requests/stats.json'  # Stats in requests folder
 
 # ===== LOAD DATA =====
 def load_requests():
@@ -24,9 +24,11 @@ def load_requests():
         return []
 
 def save_stats(data):
-    os.makedirs(os.path.dirname(STATS_FILE), exist_ok=True)
-    with open(STATS_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
+    try:
+        with open(STATS_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except:
+        pass
 
 def load_stats():
     try:
@@ -164,7 +166,7 @@ def bombing_worker(phone):
                     save_stats(stats_data)
                 print(f"[{req['name']}] ERROR: {str(e)[:50]}")
             
-            time.sleep(0.1)  # 10 req/sec per thread
+            time.sleep(0.1)
 
 @app.route('/admin')
 @app.route('/admin/')
