@@ -164,16 +164,15 @@ def bombing_worker(phone):
                     save_stats(stats_data)
                 print(f"[{req['name']}] ERROR: {str(e)[:50]}")
             
-            time.sleep(0.1)
+            time.sleep(0.1)  # 10 req/sec per thread
 
 @app.route('/admin')
 @app.route('/admin/')
 def serve_admin():
     return send_from_directory('../admin', 'index.html')
 
-# Vercel handler
-def handler(request, *args, **kwargs):
-    return app(request, *args, **kwargs)
+# ===== VERCEL ENTRY POINT =====
+app.debug = False
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
