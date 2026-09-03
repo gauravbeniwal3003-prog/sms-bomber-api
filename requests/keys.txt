@@ -1,0 +1,5 @@
+# Active Keys — One per line
+gb468523742834
+my_custom_key_123
+test_key_456
+# Commented lines are ignored
