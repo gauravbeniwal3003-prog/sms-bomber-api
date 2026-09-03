@@ -3,34 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>💀 SMS BOMBER ADMIN</title>
+    <title>💀 PANSHO BOMBER ADMIN</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; padding: 20px; }
         .container { max-width: 1200px; margin: 0 auto; }
         .header { border-bottom: 2px solid #00ff00; padding-bottom: 10px; margin-bottom: 20px; }
-        .header h1 { color: #ff0000; font-size: 2em; }
-        .header span { color: #888; font-size: 0.8em; }
+        .header h1 { color: #ff0000; }
         .card { background: #111; border: 1px solid #333; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
         .row { display: flex; gap: 20px; flex-wrap: wrap; }
         .col { flex: 1; min-width: 300px; }
-        input, select { width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #00ff00; border-radius: 5px; font-family: monospace; font-size: 1em; }
-        button { padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1.2em; }
+        input { width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #333; color: #00ff00; border-radius: 5px; font-size: 1.1em; }
+        button { padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 1.1em; }
         .btn-success { background: #00cc44; color: #fff; }
-        .btn-success:hover { background: #009933; }
         .btn-danger { background: #ff0000; color: #fff; }
-        .btn-danger:hover { background: #cc0000; }
         .btn-warning { background: #ff6600; color: #fff; }
-        .btn-warning:hover { background: #cc5500; }
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
         .stat-box { background: #1a1a1a; padding: 15px; border-radius: 5px; text-align: center; }
-        .stat-box .number { font-size: 2.5em; color: #ff6600; }
+        .stat-box .number { font-size: 2em; color: #ff6600; }
         .stat-box .label { color: #888; font-size: 0.8em; }
-        .request-item { background: #1a1a1a; padding: 10px 15px; margin-bottom: 5px; border-radius: 5px; border-left: 3px solid #00ff00; }
-        #log { background: #0a0a0a; padding: 10px; border-radius: 5px; height: 200px; overflow-y: auto; font-size: 0.8em; font-family: monospace; }
+        #log { background: #0a0a0a; padding: 10px; border-radius: 5px; height: 250px; overflow-y: auto; font-size: 0.8em; }
         .status-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 0.7em; }
-        .status-badge.active { background: #00cc44; color: #000; }
-        .status-badge.inactive { background: #ff0000; color: #fff; }
         .status-badge.running { background: #ff6600; color: #fff; animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0.5; } }
     </style>
@@ -38,7 +31,7 @@
 <body>
 <div class="container">
     <div class="header">
-        <h1>💀 DEVILS WILL RISE — SMS BOMBER</h1>
+        <h1>💀 PANSHO SMS BOMBER</h1>
         <span>Owner: @gaurav_beniwal_0001 | Channel: @gaurav_beni_0001</span>
     </div>
 
@@ -46,19 +39,18 @@
     <div class="card">
         <h3>📊 SYSTEM STATS</h3>
         <div class="stats-grid" id="statsGrid">
-            <div class="stat-box"><div class="number" id="totalRequests">0</div><div class="label">Total Requests</div></div>
-            <div class="stat-box"><div class="number" id="activeRequests">0</div><div class="label">Active Requests</div></div>
+            <div class="stat-box"><div class="number" id="totalRequests">0</div><div class="label">Total</div></div>
             <div class="stat-box"><div class="number" id="successCount">0</div><div class="label">Success</div></div>
             <div class="stat-box"><div class="number" id="failedCount">0</div><div class="label">Failed</div></div>
+            <div class="stat-box"><div class="number" id="status">⏹️</div><div class="label">Status</div></div>
         </div>
     </div>
 
     <div class="row">
-        <!-- Target & Controls -->
         <div class="col">
             <div class="card">
-                <h3>🎯 TARGET & CONTROLS</h3>
-                <input type="text" id="targetPhone" placeholder="Enter phone number" style="font-size:1.2em;">
+                <h3>🎯 TARGET</h3>
+                <input type="text" id="targetPhone" placeholder="Enter phone number (e.g., 9729480795)" style="font-size:1.2em;">
                 <br><br>
                 <div style="display: flex; gap: 10px;">
                     <button onclick="startBomb()" class="btn-success" id="startBtn" style="flex:1;">🚀 START</button>
@@ -67,8 +59,6 @@
                 <div id="bombStatus" style="margin-top:10px; font-size:1.1em;"></div>
             </div>
         </div>
-
-        <!-- Active Requests -->
         <div class="col">
             <div class="card">
                 <h3>📋 ACTIVE REQUESTS</h3>
@@ -77,7 +67,6 @@
         </div>
     </div>
 
-    <!-- Logs -->
     <div class="card">
         <h3>📜 LIVE LOGS</h3>
         <div id="log"></div>
@@ -93,9 +82,12 @@ async function loadStats() {
         const res = await fetch(API_BASE + '/stats');
         const data = await res.json();
         document.getElementById('totalRequests').textContent = data.total_requests || 0;
-        document.getElementById('activeRequests').textContent = data.active_requests || 0;
         document.getElementById('successCount').textContent = data.usage?.success || 0;
         document.getElementById('failedCount').textContent = data.usage?.failed || 0;
+        
+        const status = await fetch(API_BASE + '/bomb/status');
+        const statusData = await status.json();
+        document.getElementById('status').textContent = statusData.active ? '🟢' : '⏹️';
     } catch(e) {}
 }
 
@@ -103,19 +95,17 @@ async function loadRequests() {
     try {
         const res = await fetch(API_BASE + '/requests');
         const data = await res.json();
-        renderRequests(data);
+        const container = document.getElementById('requestList');
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p style="color:#888;">No requests configured.</p>';
+            return;
+        }
+        container.innerHTML = data.filter(r => r.active).map(req => `
+            <div style="background:#1a1a1a;padding:8px 12px;margin-bottom:5px;border-radius:5px;border-left:3px solid #00ff00;">
+                ✅ ${req.name}
+            </div>
+        `).join('');
     } catch(e) {}
-}
-
-function renderRequests(requests) {
-    const container = document.getElementById('requestList');
-    if (!requests || requests.length === 0) {
-        container.innerHTML = '<p style="color:#888;">No requests configured.</p>';
-        return;
-    }
-    container.innerHTML = requests.filter(r => r.active).map(req => `
-        <div class="request-item">✅ ${req.name} | ${req.method} | ${req.url}</div>
-    `).join('');
 }
 
 // ===== BOMBING =====
@@ -133,7 +123,7 @@ async function startBomb() {
         if (data.success) {
             document.getElementById('startBtn').style.display = 'none';
             document.getElementById('stopBtn').style.display = 'inline-block';
-            document.getElementById('bombStatus').innerHTML = `🟢 <strong>BOMBING ACTIVE</strong> on ${phone} | ${data.active_requests} requests`;
+            document.getElementById('bombStatus').innerHTML = `🟢 <strong>BOMBING ACTIVE</strong> on ${phone}`;
             addLog(`🚀 Bombing started on ${phone}`);
             loadStats();
         } else {
@@ -168,10 +158,9 @@ function addLog(msg) {
     if (log.children.length > 50) log.removeChild(log.lastChild);
 }
 
-// ===== AUTO REFRESH =====
+// ===== POLLING =====
 setInterval(() => {
     loadStats();
-    // Check bombing status
     fetch(API_BASE + '/bomb/status').then(res => res.json()).then(data => {
         if (data.active) {
             document.getElementById('startBtn').style.display = 'none';
@@ -179,7 +168,7 @@ setInterval(() => {
             document.getElementById('bombStatus').innerHTML = `🟢 <strong>BOMBING ACTIVE</strong> | ${data.active_requests} requests`;
         }
     }).catch(() => {});
-}, 3000);
+}, 2000);
 
 // ===== INIT =====
 loadRequests();
