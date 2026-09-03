@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>💀 SMS BOMBER — Liquid Glass</title>
+    <title>💀 SMS BOMBER — Full Features</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -12,7 +12,6 @@
             min-height: 100vh;
             padding: 20px;
         }
-        /* ===== HAMBURGER MENU ===== */
         .menu-toggle {
             position: fixed;
             top: 20px;
@@ -34,10 +33,10 @@
         .sidebar {
             position: fixed;
             top: 0;
-            left: -320px;
-            width: 300px;
+            left: -340px;
+            width: 320px;
             height: 100vh;
-            background: rgba(255,255,255,0.85);
+            background: rgba(255,255,255,0.92);
             backdrop-filter: blur(30px);
             border-right: 1px solid rgba(255,255,255,0.3);
             padding: 80px 20px 20px;
@@ -47,12 +46,11 @@
             overflow-y: auto;
         }
         .sidebar.open { left: 0; }
-        
         .sidebar .tab {
             display: block;
             width: 100%;
             padding: 14px 18px;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             border: none;
             border-radius: 12px;
             background: transparent;
@@ -66,7 +64,6 @@
         .sidebar .tab:hover { background: rgba(0,0,0,0.05); }
         .sidebar .tab.active { background: rgba(0,0,0,0.08); border-left: 4px solid #00cc44; }
         .sidebar .tab .icon { margin-right: 12px; }
-        
         .sidebar .close-btn {
             position: absolute;
             top: 20px;
@@ -77,11 +74,9 @@
             cursor: pointer;
             color: #1a1a2e;
         }
-        .sidebar .close-btn:hover { transform: rotate(90deg); transition: 0.3s; }
 
-        /* ===== MAIN GLASS ===== */
         .glass {
-            max-width: 1200px;
+            max-width: 1300px;
             margin: 0 auto;
             background: rgba(255, 255, 255, 0.25);
             backdrop-filter: blur(20px);
@@ -113,10 +108,9 @@
             padding: 18px;
             text-align: center;
             border: 1px solid rgba(255,255,255,0.3);
-            transition: 0.2s;
         }
         .stat-card .number { font-size: 2em; font-weight: 700; color: #1a1a2e; }
-        .stat-card .label { font-size: 0.8em; color: #555; margin-top: 2px; }
+        .stat-card .label { font-size: 0.8em; color: #555; }
         .stat-card .status-dot {
             display: inline-block;
             width: 12px;
@@ -130,11 +124,10 @@
 
         .row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
         .col { flex: 1; min-width: 240px; }
-
         .input-group { display: flex; gap: 10px; flex-wrap: wrap; }
-        .input-group input {
+        .input-group input, .input-group select {
             flex: 1;
-            padding: 14px 18px;
+            padding: 12px 16px;
             border: none;
             border-radius: 14px;
             background: rgba(255,255,255,0.6);
@@ -143,12 +136,12 @@
             color: #1a1a2e;
             outline: none;
             border: 1px solid rgba(255,255,255,0.3);
-            min-width: 160px;
+            min-width: 120px;
         }
         .input-group input:focus { background: rgba(255,255,255,0.85); }
 
         .btn {
-            padding: 14px 28px;
+            padding: 12px 24px;
             border: none;
             border-radius: 14px;
             font-weight: 600;
@@ -161,54 +154,57 @@
         .btn-start:hover { background: #00b33a; transform: scale(1.02); }
         .btn-stop { background: #ff4444; color: #fff; box-shadow: 0 4px 15px rgba(255,68,68,0.3); }
         .btn-stop:hover { background: #e03333; transform: scale(1.02); }
+        .btn-primary { background: #0066ff; color: #fff; box-shadow: 0 4px 15px rgba(0,102,255,0.3); }
+        .btn-primary:hover { background: #0055dd; transform: scale(1.02); }
+        .btn-danger { background: #ff4444; color: #fff; }
+        .btn-danger:hover { background: #cc0000; }
+        .btn-sm { padding: 6px 14px; font-size: 0.8em; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
 
-        .request-list, .log-box {
+        .request-list, .log-box, .key-list {
             background: rgba(255,255,255,0.3);
             backdrop-filter: blur(10px);
             border-radius: 16px;
             padding: 15px;
             border: 1px solid rgba(255,255,255,0.2);
         }
-        .request-item {
+        .request-item, .key-item {
             display: flex;
             justify-content: space-between;
-            padding: 6px 4px;
+            padding: 8px 4px;
             border-bottom: 1px solid rgba(0,0,0,0.05);
             color: #1a1a2e;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
         }
-        .request-item:last-child { border-bottom: none; }
-        .request-item .badge { background: #00cc44; color: #fff; font-size: 0.7em; padding: 2px 10px; border-radius: 12px; }
+        .request-item:last-child, .key-item:last-child { border-bottom: none; }
+        .badge { background: #00cc44; color: #fff; font-size: 0.7em; padding: 2px 10px; border-radius: 12px; }
+        .badge-warning { background: #ff6600; color: #fff; font-size: 0.7em; padding: 2px 10px; border-radius: 12px; }
+        .badge-danger { background: #ff4444; color: #fff; font-size: 0.7em; padding: 2px 10px; border-radius: 12px; }
+
         .log-box { height: 160px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 0.8em; }
         .log-box div { padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,0.03); }
+        .key-code { font-family: monospace; font-size: 0.85em; background: rgba(0,0,0,0.05); padding: 2px 8px; border-radius: 6px; }
+        .copy-btn { background: none; border: none; cursor: pointer; font-size: 1.1em; }
 
-        /* ===== TAB CONTENT ===== */
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        .key-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 12px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 10px;
-            margin-bottom: 6px;
-            align-items: center;
-        }
-        .key-item .key-code { font-family: monospace; font-size: 0.85em; color: #1a1a2e; }
-        .key-item .del-btn { background: #ff4444; color: #fff; border: none; padding: 4px 12px; border-radius: 8px; cursor: pointer; }
+        .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .settings-grid .full { grid-column: 1 / -1; }
 
         @media (max-width: 600px) {
             .glass { padding: 20px; }
             .header h1 { font-size: 1.4em; }
             .stats-grid { grid-template-columns: repeat(2, 1fr); }
             .sidebar { width: 280px; left: -300px; }
+            .settings-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
 
-<!-- ===== HAMBURGER MENU ===== -->
 <button class="menu-toggle" onclick="toggleMenu()">☰</button>
 
 <div class="sidebar" id="sidebar">
@@ -216,33 +212,25 @@
     <button class="tab active" data-tab="tab1" onclick="switchTab('tab1')"><span class="icon">🚀</span> Dashboard</button>
     <button class="tab" data-tab="tab2" onclick="switchTab('tab2')"><span class="icon">🔑</span> API Keys</button>
     <button class="tab" data-tab="tab3" onclick="switchTab('tab3')"><span class="icon">📜</span> Logs</button>
-    <button class="tab" data-tab="tab4" onclick="switchTab('tab4')"><span class="icon">📊</span> History</button>
+    <button class="tab" data-tab="tab4" onclick="switchTab('tab4')"><span class="icon">📊</span> Key History</button>
 </div>
 
-<!-- ===== MAIN GLASS ===== -->
 <div class="glass">
 
-    <!-- ===== TAB 1: DASHBOARD ===== -->
+    <!-- TAB 1: DASHBOARD -->
     <div id="tab1" class="tab-content active">
-        <div class="header">
-            <h1>💀 SMS BOMBER</h1>
-            <span>⚡ Liquid Glass · @gaurav_beniwal_0001</span>
-        </div>
-
+        <div class="header"><h1>💀 SMS BOMBER</h1><span>⚡ Full Features · @gaurav_beniwal_0001</span></div>
         <div class="stats-grid" id="statsGrid">
             <div class="stat-card"><div class="number" id="totalRequests">0</div><div class="label">📦 Total Sent</div></div>
             <div class="stat-card"><div class="number" id="successCount">0</div><div class="label">✅ Success</div></div>
             <div class="stat-card"><div class="number" id="failedCount">0</div><div class="label">❌ Failed</div></div>
-            <div class="stat-card">
-                <div class="number"><span class="status-dot" id="statusDot"></span><span id="statusText">Stopped</span></div>
-                <div class="label">⚡ Status</div>
-            </div>
+            <div class="stat-card"><div class="number"><span class="status-dot" id="statusDot"></span><span id="statusText">Stopped</span></div><div class="label">⚡ Status</div></div>
         </div>
-
         <div class="row">
             <div class="col">
                 <div class="input-group">
-                    <input type="text" id="targetPhone" placeholder="📱 Enter phone number" value="9729480795">
+                    <input type="text" id="targetPhone" placeholder="📱 Phone" value="9729480795">
+                    <input type="text" id="apiKeyInput" placeholder="🔑 API Key (optional)" style="flex:0.8;">
                     <button class="btn btn-start" id="startBtn" onclick="startBomb()">🚀 START</button>
                     <button class="btn btn-stop" id="stopBtn" onclick="stopBomb()" style="display:none;">⏹️ STOP</button>
                 </div>
@@ -252,32 +240,47 @@
                 <div class="request-list" id="requestList"><div style="color:#888;">Loading...</div></div>
             </div>
         </div>
-
-        <div style="margin-top:20px;">
-            <div class="log-box" id="logBox"></div>
-        </div>
+        <div style="margin-top:20px;"><div class="log-box" id="logBox"></div></div>
     </div>
 
-    <!-- ===== TAB 2: API KEYS ===== -->
+    <!-- TAB 2: API KEYS -->
     <div id="tab2" class="tab-content">
-        <h2 style="color:#1a1a2e;margin-bottom:15px;">🔑 API Keys</h2>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:15px;">
-            <input type="text" id="keyName" placeholder="Key name" style="padding:10px;border-radius:12px;border:1px solid rgba(0,0,0,0.1);flex:1;min-width:150px;">
-            <input type="number" id="keyExpiry" value="3600" style="padding:10px;border-radius:12px;border:1px solid rgba(0,0,0,0.1);width:120px;">
-            <button class="btn btn-start" onclick="generateKey()">➕ Generate</button>
+        <h2 style="color:#1a1a2e;margin-bottom:15px;">🔑 API Key Management</h2>
+        
+        <div style="background:rgba(255,255,255,0.3);border-radius:16px;padding:20px;margin-bottom:20px;">
+            <h3 style="color:#1a1a2e;margin-bottom:12px;">➕ Generate New Key</h3>
+            <div class="settings-grid">
+                <div><label style="color:#555;">Key Name</label><input type="text" id="keyName" placeholder="My Key" style="width:100%;padding:10px;border-radius:12px;border:1px solid rgba(0,0,0,0.1);"></div>
+                <div><label style="color:#555;">Custom Key (optional)</label><input type="text" id="customKey" placeholder="my_custom_key_123" style="width:100%;padding:10px;border-radius:12px;border:1px solid rgba(0,0,0,0.1);"></div>
+                <div><label style="color:#555;">Expiry Type</label>
+                    <select id="expiryType" style="width:100%;padding:10px;border-radius:12px;border:1px solid rgba(0,0,0,0.1);">
+                        <option value="unlimited">♾️ Unlimited</option>
+                        <option value="time">⏱️ Time Based</option>
+                        <option value="date">📅 Date Based</option>
+                    </select>
+                </div>
+                <div id="expirySettings">
+                    <label style="color:#555;">Duration (seconds) / Date</label>
+                    <input type="text" id="expiryValue" placeholder="3600 or 2026-12-31T23:59:59" style="width:100%;padding:10px;border-radius:12px;border:1px solid rgba(0,0,0,0.1);">
+                </div>
+                <div><label style="color:#555;">Request Limit (0 = unlimited)</label><input type="number" id="requestLimit" value="0" style="width:100%;padding:10px;border-radius:12px;border:1px solid rgba(0,0,0,0.1);"></div>
+                <div style="display:flex;align-items:flex-end;"><button class="btn btn-start" onclick="generateKey()" style="width:100%;">🔑 Generate Key</button></div>
+            </div>
         </div>
-        <div id="keyList"></div>
+
+        <h3 style="color:#1a1a2e;margin:15px 0 10px;">📋 Existing Keys</h3>
+        <div class="key-list" id="keyList"><div style="color:#888;">Loading...</div></div>
     </div>
 
-    <!-- ===== TAB 3: LOGS ===== -->
+    <!-- TAB 3: LOGS -->
     <div id="tab3" class="tab-content">
         <h2 style="color:#1a1a2e;margin-bottom:15px;">📜 Live Logs</h2>
         <div class="log-box" id="logBoxTab3" style="height:400px;"></div>
     </div>
 
-    <!-- ===== TAB 4: HISTORY ===== -->
+    <!-- TAB 4: KEY HISTORY -->
     <div id="tab4" class="tab-content">
-        <h2 style="color:#1a1a2e;margin-bottom:15px;">📊 History</h2>
+        <h2 style="color:#1a1a2e;margin-bottom:15px;">📊 Key History</h2>
         <div id="historyList" style="color:#1a1a2e;"></div>
     </div>
 
@@ -351,12 +354,15 @@ async function loadStatus() {
 async function startBomb() {
     const phone = targetPhone.value.trim();
     if (!phone) { alert('Enter phone number!'); return; }
+    const api_key = document.getElementById('apiKeyInput').value.trim();
     startBtn.disabled = true; startBtn.textContent = '⏳ Starting...';
     try {
+        const body = {phone};
+        if (api_key) body.api_key = api_key;
         const res = await fetch(API_BASE + '/bomb/start', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({phone})
+            body: JSON.stringify(body)
         });
         const data = await res.json();
         if (data.success) {
@@ -393,8 +399,13 @@ async function loadKeys() {
         container.innerHTML = Object.entries(data).map(([key, val]) => `
             <div class="key-item">
                 <span class="key-code">${key}</span>
-                <span style="color:#555;">${val.name || 'Unnamed'} · ${Math.round((val.expiry || 0)/60)}min</span>
-                <button class="del-btn" onclick="revokeKey('${key}')">✕</button>
+                <span>${val.name || 'Unnamed'}</span>
+                <span>${val.expiry_type || 'unlimited'} ${val.expiry_time ? '· ' + new Date(val.expiry_time).toLocaleDateString() : ''}</span>
+                <span>${val.request_limit || 0 > 0 ? `${val.used || 0}/${val.request_limit}` : '♾️ Unlimited'}</span>
+                <span>
+                    <button class="copy-btn" onclick="copyKey('${key}')" title="Copy">📋</button>
+                    <button class="btn btn-danger btn-sm" onclick="revokeKey('${key}')">✕</button>
+                </span>
             </div>
         `).join('');
     } catch(e) {}
@@ -402,33 +413,60 @@ async function loadKeys() {
 
 async function generateKey() {
     const name = document.getElementById('keyName').value || 'Unnamed';
-    const expiry = parseInt(document.getElementById('keyExpiry').value) || 3600;
+    const custom_key = document.getElementById('customKey').value.trim();
+    const expiry_type = document.getElementById('expiryType').value;
+    const expiry_value = document.getElementById('expiryValue').value.trim();
+    const request_limit = parseInt(document.getElementById('requestLimit').value) || 0;
+    
+    const data = {name, custom_key, expiry_type, request_limit};
+    if (expiry_type === 'time') data.duration = parseInt(expiry_value) || 3600;
+    if (expiry_type === 'date') data.expiry_date = expiry_value;
+    
     try {
         const res = await fetch(API_BASE + '/keys', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({name, expiry})
+            body: JSON.stringify(data)
         });
-        const data = await res.json();
-        if (data.success) {
-            alert('✅ Key: ' + data.key);
+        const result = await res.json();
+        if (result.success) {
+            alert('✅ Key Generated: ' + result.key);
             loadKeys();
+            loadHistory();
+        } else {
+            alert('❌ ' + (result.error || 'Failed'));
         }
     } catch(e) { alert('❌ Error: ' + e.message); }
 }
 
 async function revokeKey(key) {
-    if (!confirm('Revoke this key?')) return;
+    if (!confirm('Revoke key: ' + key + '?')) return;
     try {
         await fetch(API_BASE + '/keys/' + key, { method: 'DELETE' });
         loadKeys();
+        loadHistory();
     } catch(e) {}
+}
+
+function copyKey(key) {
+    navigator.clipboard.writeText(key).then(() => {
+        alert('✅ Copied: ' + key);
+    }).catch(() => {
+        // Fallback
+        const textarea = document.createElement('textarea');
+        textarea.value = key;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('✅ Copied: ' + key);
+    });
 }
 
 // ===== LOGS =====
 async function loadLogs() {
     try {
-        const res = await fetch(API_BASE + '/logs');
+        const res = await fetch(API_BASE + '/logs?limit=100');
         const data = await res.json();
         const container = document.getElementById('logBoxTab3');
         container.innerHTML = data.map(log => `
@@ -440,18 +478,26 @@ async function loadLogs() {
 // ===== HISTORY =====
 async function loadHistory() {
     try {
-        const res = await fetch(API_BASE + '/stats');
+        const res = await fetch(API_BASE + '/keys/history');
         const data = await res.json();
-        document.getElementById('historyList').innerHTML = `
-            <div class="stat-card"><div class="number">${data.usage?.total_requests || 0}</div><div class="label">Total Requests</div></div>
-            <div class="stat-card"><div class="number">${data.usage?.success || 0}</div><div class="label">Success</div></div>
-            <div class="stat-card"><div class="number">${data.usage?.failed || 0}</div><div class="label">Failed</div></div>
-            <div class="stat-card"><div class="number">${data.usage?.rate_limited || 0}</div><div class="label">Rate Limited</div></div>
-        `;
+        const container = document.getElementById('historyList');
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div style="color:#888;">No history yet.</div>';
+            return;
+        }
+        container.innerHTML = data.slice().reverse().map(h => `
+            <div class="request-item">
+                <span>${h.action || 'used'}</span>
+                <span class="key-code">${h.key}</span>
+                <span>${h.name || '-'}</span>
+                <span>${h.request_limit ? h.request_limit + ' limit' : '♾️'}</span>
+                <span>${new Date(h.time).toLocaleString()}</span>
+            </div>
+        `).join('');
     } catch(e) {}
 }
 
-// ===== LOGS (Main) =====
+// ===== LOGS MAIN =====
 function addLog(msg) {
     const entry = document.createElement('div');
     entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
@@ -459,12 +505,29 @@ function addLog(msg) {
     if (logBox.children.length > 50) logBox.removeChild(logBox.lastChild);
 }
 
+// ===== EXPIRY TYPE TOGGLE =====
+document.getElementById('expiryType').addEventListener('change', function() {
+    const label = document.querySelector('#expirySettings label');
+    const input = document.getElementById('expiryValue');
+    if (this.value === 'time') {
+        label.textContent = '⏱️ Duration (seconds):';
+        input.placeholder = '3600';
+    } else if (this.value === 'date') {
+        label.textContent = '📅 Expiry Date (YYYY-MM-DDTHH:MM:SS):';
+        input.placeholder = '2026-12-31T23:59:59';
+    } else {
+        label.textContent = '♾️ Unlimited (no expiry)';
+        input.placeholder = 'Unlimited';
+        input.value = '';
+    }
+});
+
 // ===== POLLING =====
 setInterval(async () => { await loadStats(); await loadStatus(); }, 1500);
 
 // ===== INIT =====
-loadRequests(); loadStats(); loadStatus(); loadKeys(); loadLogs();
-addLog('💀 Liquid Glass Admin ready · Server-side stats');
+loadRequests(); loadStats(); loadStatus(); loadKeys(); loadLogs(); loadHistory();
+addLog('💀 Full Features Admin ready · All server-side');
 </script>
 </body>
 </html>
